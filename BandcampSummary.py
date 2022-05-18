@@ -22,7 +22,7 @@ import json
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
 SCOPES = ['https://mail.google.com/']
 our_email = 'keinobjekt@gmail.com'
-max_results = 200
+max_results = 2000
 our_username = 'tjhertz'
 
 
@@ -89,6 +89,15 @@ def get_messages(service, ids, format):
             raw_emails[str(idx)] = base64.urlsafe_b64decode(raw_email + '=' * (4 - len(raw_email) % 4))
             idx += 1
 
+    import pickle
+
+    with open("data.pkl", "wb") as a_file:
+        pickle.dump(raw_emails, a_file)
+
+    with open("data.pkl", "rb") as a_file:
+        raw_emails = pickle.load(a_file)
+        
+        
     msgs = {}
 
     for idx, email in raw_emails.items():
