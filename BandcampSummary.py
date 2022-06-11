@@ -22,7 +22,7 @@ import json
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
 SCOPES = ['https://mail.google.com/']
 our_email = 'keinobjekt@gmail.com'
-max_results = 2000
+max_results = 20
 our_username = 'tjhertz'
 
 
@@ -96,9 +96,13 @@ def get_messages(service, ids, format):
 
     with open("data.pkl", "rb") as a_file:
         raw_emails = pickle.load(a_file)
+    
+    return raw_emails
+
+
         
-        
-    msgs = {}
+def parse_messages(raw_emails):
+    releases = {}
 
     for idx, email in raw_emails.items():
 
@@ -212,9 +216,9 @@ def get_messages(service, ids, format):
         release_dict['title'] = title.encode('utf-8').decode('unicode_escape')
         release_dict['label'] = page.encode('utf-8').decode('unicode_escape')
         release_dict['url'] = url
-        msgs[str(idx)] = release_dict
+        releases[str(idx)] = release_dict
 
-    return msgs
+    return releases
 
 def get_label(messages):
     
@@ -229,7 +233,8 @@ if __name__ == "__main__":
 
     message_ids = search_messages(service, search_query, max_results=max_results)
 
-    messages = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
+    raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
+    messages = parse_messages(raw_emails)
 
     import pandas as pd
     def path_to_image_html(path):
