@@ -15,7 +15,7 @@ from email.mime.base import MIMEBase
 from mimetypes import guess_type as guess_mime_type
 
 import base64
-from html import unescape                
+from html import unescape
 
 import json
 
@@ -61,6 +61,20 @@ def search_messages(service, query, max_results=100):
 
 def get_message(service, id, format):
     return service.users().messages().get(userId='me', id=id, format=format).execute()
+
+
+def parse_release_url(message_text):
+    release_url = None
+    search_string = 'a href="https://'
+    start_idx = message_text.find(search_string)
+    if start_idx >= 0:
+        url_start_idx = message_text.find(search_string) + 8
+        url_end_idx = message_text.find('"', url_start_idx)
+        url_qmark_idx = message_text.find('?', url_start_idx)
+        if url_end_idx > url_start_idx:
+            end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
+            release_url = message_text[url_start_idx:end_idx]
+    return release_url
 
 
 def get_payload(request_id, response, exception):
@@ -112,6 +126,10 @@ def parse_messages(raw_emails):
             s = s.decode()
         except:
             s = str(s)
+
+        release_url = parse_release_url(s)
+
+
 
         greetings_string = f'Greetings {our_username},'
         loc_greetings = s.find(greetings_string)
