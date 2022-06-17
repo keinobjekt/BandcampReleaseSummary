@@ -17,6 +17,9 @@ from mimetypes import guess_type as guess_mime_type
 import base64
 from html import unescape
 
+import requests
+from bs4 import BeautifulSoup
+
 import json
 
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
@@ -129,112 +132,43 @@ def parse_messages(raw_emails):
 
         release_url = parse_release_url(s)
 
+        html_text = requests.get(release_url).text
+        soup = BeautifulSoup(html_text, 'html.parser')
 
+        # release title
+        release_title = soup.find('h2', class_="trackTitle").text.strip()        
 
-        greetings_string = f'Greetings {our_username},'
-        loc_greetings = s.find(greetings_string)
+        # artist name
+        def parse_artist_name(input):
+            assert input[0:2] == 'by'
+            input = input [2:]
+            return input.strip()
 
-        if loc_greetings <= 0:
-            continue # no "Greetings username" found
+        artist_name = parse_artist_name(soup.find('h3').text)
 
-        # check if greetings string is followed by \r\n or \\r\\n
-        idx_after_greetings = loc_greetings+len(greetings_string)
-        after_greetings_string = s[idx_after_greetings:idx_after_greetings+4]
-        if '\r\n' in after_greetings_string:
-            double_esc = False
-            page_start_idx = idx_after_greetings + 2
-            lf_char = '\n'
-            cr_char = '\r'
-        elif '\\r\\n' in after_greetings_string:
-            double_esc = True
-            page_start_idx = idx_after_greetings + 4
-            lf_char = '\\n'
-            cr_char = '\\r'
+        # page name 
+        page_name = soup.findAll('span', class_="title")[1].text.strip()
 
-        if s[page_start_idx:].find(' just announced') > 0:
-            continue # this is announcement email not a release email
-
-        # image
+        # image url
         img_idx_end = s.find('jpg') + 3
         img_idx_start = s[0:img_idx_end].rfind('http')
         img_url = s[img_idx_start:img_idx_end]
 
         # date
         date_idx = s.find('X-Google-Smtp-Source')
-        date_idx_start = s[0:date_idx-2].rfind(lf_char) + 2        
-        date_len = s[date_idx_start:date_idx_start+200].find(cr_char)
+        date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
+        date_len = s[date_idx_start:date_idx_start+200].find('\r')
         date_idx_end = date_idx_start + date_len
-        date = s[date_idx_start:date_idx_end].lstrip()
+        date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
 
-        if s[page_start_idx:].find(' just released the following:') > 0:
-            title_in_quotes = False
-
-            # page
-            page_start_idx += 2 * (len(lf_char) + len(cr_char)) # crop '\r\n\r\n'
-            page_name_length = s[page_start_idx:].find(' just released the following:')
-            page_end_idx = page_start_idx + page_name_length
-            page = s[page_start_idx:page_end_idx]
-
-            # release
-            release_start_idx = page_end_idx + len(' just released the following:')
-            
-            # crop some leading line breaks
-            def count_line_break_chars(string, start_idx):
-                offs = 0
-                while cr_char in string[start_idx+offs:start_idx+offs+2] or lf_char in string[start_idx+offs:start_idx+offs+2]:
-                    offs += 2
-                return offs
-
-            release_start_idx += count_line_break_chars(s, release_start_idx)
-            release_end_idx = release_start_idx + s[release_start_idx:].find(f'{cr_char}{lf_char}')
-            release = s[release_start_idx : release_end_idx]
-            
-            # url
-            url_start_idx = release_end_idx + (4 if double_esc else 2)
-            url_end_idx = url_start_idx + s[url_start_idx:].find('?')
-            url = s[url_start_idx:url_end_idx]
-
-        elif s[page_start_idx:].find(' just released') > 0:
-            title_in_quotes = True
-
-            # page
-            page_name_length = s[page_start_idx:].find(' just released')
-            page_end_idx = page_start_idx + page_name_length
-            page = s[page_start_idx:page_end_idx]
-
-            # release
-            release_start_idx = page_end_idx + len(' just released ')
-            release_end_idx = release_start_idx + s[release_start_idx:].find('check it out') - 2
-            release = s[release_start_idx : release_end_idx]
-            
-            # url
-            url_offset = s[release_end_idx:].find(lf_char) + (2 if double_esc else 1)
-            url_start_idx = release_end_idx + url_offset
-            url_end_idx = url_start_idx + s[url_start_idx:].find('?')
-            url = s[url_start_idx:url_end_idx]
-        else:
-            continue # probably "just added"
-
-        # split release='X by Y' into title=X, artist=Y
-        if 'by' in release:
-            if title_in_quotes:
-                title = release[0:release.find('" by') + 1]
-                artist = release[release.find('" by') + 5:]
-            else:
-                title = release[0:release.rfind(' by ')]
-                artist = release[release.rfind(' by ') + 4:]
-        else:
-            title = release
-            artist = None
-
-        release_dict = {}
-        release_dict['img_url'] = img_url
-        release_dict['date'] = date.encode('utf-8').decode('unicode_escape')
-        release_dict['artist'] = artist.encode('utf-8').decode('unicode_escape') if artist is not None else None
-        release_dict['title'] = title.encode('utf-8').decode('unicode_escape')
-        release_dict['label'] = page.encode('utf-8').decode('unicode_escape')
-        release_dict['url'] = url
-        releases[str(idx)] = release_dict
+        release = {}
+        release['img_url'] = img_url
+        release['date'] = date
+        release['artist'] = artist_name
+        release['title'] = release_title
+        release['label'] = page_name
+        release['url'] = release_url
+        releases[str(idx)] = release
 
     return releases
 
