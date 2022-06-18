@@ -26,8 +26,6 @@ import json
 SCOPES = ['https://mail.google.com/']
 our_email = 'keinobjekt@gmail.com'
 max_results = 20
-our_username = 'tjhertz'
-
 
 
 def gmail_authenticate():
@@ -108,20 +106,29 @@ def get_messages(service, ids, format):
 
     import pickle
 
-    with open("data.pkl", "wb") as a_file:
+    with open("email_data.pkl", "wb") as a_file:
         pickle.dump(raw_emails, a_file)
 
-    with open("data.pkl", "rb") as a_file:
+    with open("email_data.pkl", "rb") as a_file:
         raw_emails = pickle.load(a_file)
     
     return raw_emails
 
-
+def construct_release(img_url=None, date=None, artist_name=None, release_title=None, page_name=None, release_url=None, release_id=None):
+    release = {}
+    release['img_url'] = img_url
+    release['date'] = date
+    release['artist'] = artist_name
+    release['title'] = release_title
+    release['label'] = page_name
+    release['url'] = release_url
+    release['release_id'] = release_id
+    return release
         
 def parse_messages(raw_emails):
-    releases = {}
+    releases = []
 
-    for idx, email in raw_emails.items():
+    for _, email in raw_emails.items():
 
         s = email
 
@@ -160,21 +167,59 @@ def parse_messages(raw_emails):
         date_len = s[date_idx_start:date_idx_start+200].find('\r')
         date_idx_end = date_idx_start + date_len
         date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
+        date = date[0:16]
 
-        release = {}
-        release['img_url'] = img_url
-        release['date'] = date
-        release['artist'] = artist_name
-        release['title'] = release_title
-        release['label'] = page_name
-        release['url'] = release_url
-        releases[str(idx)] = release
+        # release id
+        release_id = eval(soup.find('meta', attrs={'name':'bc-page-properties'})["content"])['item_id']
+
+        releases.append(construct_release(img_url, date, artist_name, release_title, page_name, release_url, release_id))
+
+        print(f'Retrieving release data for {release_title} by {artist_name}')
+    
+    with open("release_data.pkl", "wb") as a_file:
+        pickle.dump(releases, a_file)
+
+    with open("release_data.pkl", "rb") as a_file:
+        releases = pickle.load(a_file)
 
     return releases
 
-def get_label(messages):
-    
-    return 0
+
+def get_widget_string(release_id, release_url):
+    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}">4 Star Volume 3 by Bay B Kane</a></iframe>'
+
+
+def generate_html(releases):
+
+    odd_num_releases = len(releases) % 2 != 0
+    if odd_num_releases: # append blank release to ensure releases list has an even number
+        releases.append(construct_release())
+
+    doc = '<html>'
+    doc += '<body>'
+
+    it = iter(releases)
+    for release1 in it:
+        release2 = next(it)
+        release_id_1 = release1['release_id']
+        release_id_2 = release2['release_id']
+        release_url_1 = release1['url']
+        release_url_2 = release2['url']
+        date_1 = release1['date']
+        date_2 = release2['date']
+        widget_string_1 = get_widget_string(release_id_1, release_url_1)
+        widget_string_2 = get_widget_string(release_id_2, release_url_2)
+        doc += '<p>'
+        doc += '<table>'
+        doc += f'<tr><th>{date_1}</th><th>{date_2}</th></tr>'
+        doc += f'<tr><th>{widget_string_1}</th><th>{widget_string_2}</th></tr>'
+        doc += '</table>'
+        doc += '</p>'
+
+    doc += '</body>'
+    doc += '</html>'
+
+    return doc
 
 
 if __name__ == "__main__":
@@ -184,12 +229,16 @@ if __name__ == "__main__":
     search_query = f"from:noreply@bandcamp.com subject:'New release from'"
 
     message_ids = search_messages(service, search_query, max_results=max_results)
-
     raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
-    messages = parse_messages(raw_emails)
+    releases = parse_messages(raw_emails)
+    html_data = generate_html(releases)
 
-    import pandas as pd
-    def path_to_image_html(path):
-        return '<img src="'+ path + '" width="60">'
-    df = pd.DataFrame.from_dict(messages).transpose()
-    df.to_html('output.html', render_links=True, formatters=dict(img_url=path_to_image_html), escape=False)
+    with open('output.html', 'w') as file:
+        file.write(html_data)
+
+
+    # import pandas as pd
+    # def path_to_image_html(path):
+    #     return '<img src="'+ path + '" width="60">'
+    # df = pd.DataFrame.from_dict(releases).transpose()
+    # df.to_html('output.html', render_links=True, formatters=dict(img_url=path_to_image_html), escape=False)
