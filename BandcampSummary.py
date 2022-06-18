@@ -4,31 +4,21 @@ import pickle
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-# for encoding/decoding messages in base64
-from base64 import urlsafe_b64decode, urlsafe_b64encode
-# for dealing with attachement MIME types
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
-from email.mime.audio import MIMEAudio
-from email.mime.base import MIMEBase
-from mimetypes import guess_type as guess_mime_type
-
 import base64
-from html import unescape
-
 import requests
 from bs4 import BeautifulSoup
-
 import json
 
-# Request all access (permission to read/send/receive emails, manage the inbox, and more)
-SCOPES = ['https://mail.google.com/']
+
+# Arguments
 our_email = 'keinobjekt@gmail.com'
 max_results = 20
 before_date = '2022/04/20' # YYYY/MM/DD
 after_date = '2022/03/20' # YYYY/MM/DD
 
+
+# Request all access (permission to read/send/receive emails, manage the inbox, and more)
+SCOPES = ['https://mail.google.com/']
 
 def gmail_authenticate():
     creds = None
@@ -62,9 +52,6 @@ def search_messages(service, query, max_results=100):
             messages.extend(result['messages'])
     return messages
 
-def get_message(service, id, format):
-    return service.users().messages().get(userId='me', id=id, format=format).execute()
-
 
 def parse_release_url(message_text):
     release_url = None
@@ -80,14 +67,6 @@ def parse_release_url(message_text):
     return release_url
 
 
-def get_payload(request_id, response, exception):
-    if exception is not None:
-    # Do something with the exception
-        pass
-    else:
-    # Do something with the response
-        return response['payload']
-
 def get_messages(service, ids, format):    
 
     idx = 0
@@ -97,7 +76,7 @@ def get_messages(service, ids, format):
         print(f'Downloading messages {idx} to {min(idx+100, len(ids))}')
         batch = service.new_batch_http_request()
         for id in ids[idx:idx+100]:
-            batch.add(service.users().messages().get(userId = 'me', id = id, format=format))#, callback=get_payload)
+            batch.add(service.users().messages().get(userId = 'me', id = id, format=format))
         batch.execute()
         response_keys = [key for key in batch._responses]
 
