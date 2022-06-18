@@ -26,6 +26,8 @@ import json
 SCOPES = ['https://mail.google.com/']
 our_email = 'keinobjekt@gmail.com'
 max_results = 20
+before_date = '2022/04/20' # YYYY/MM/DD
+after_date = '2022/03/20' # YYYY/MM/DD
 
 
 def gmail_authenticate():
@@ -147,6 +149,7 @@ def parse_messages(raw_emails):
 
         # artist name
         def parse_artist_name(input):
+            input = input.strip()
             assert input[0:2] == 'by'
             input = input [2:]
             return input.strip()
@@ -207,11 +210,15 @@ def generate_html(releases):
         release_url_2 = release2['url']
         date_1 = release1['date']
         date_2 = release2['date']
+        url_1 = release1['url']
+        url_2 = release2['url']
+        label_1 = release1['label']
+        label_2 = release2['label']
         widget_string_1 = get_widget_string(release_id_1, release_url_1)
         widget_string_2 = get_widget_string(release_id_2, release_url_2)
         doc += '<p>'
         doc += '<table>'
-        doc += f'<tr><th>{date_1}</th><th>{date_2}</th></tr>'
+        doc += f'<tr><th><a href="{url_1}">{date_1} / {label_1}<a></th> <th><a href="{url_2}">{date_2} / {label_2}</a></th></tr>'
         doc += f'<tr><th>{widget_string_1}</th><th>{widget_string_2}</th></tr>'
         doc += '</table>'
         doc += '</p>'
@@ -226,7 +233,7 @@ if __name__ == "__main__":
     # get the Gmail API service
     service = gmail_authenticate()
 
-    search_query = f"from:noreply@bandcamp.com subject:'New release from'"
+    search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{before_date} after:{after_date}"
 
     message_ids = search_messages(service, search_query, max_results=max_results)
     raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
@@ -235,10 +242,3 @@ if __name__ == "__main__":
 
     with open('output.html', 'w') as file:
         file.write(html_data)
-
-
-    # import pandas as pd
-    # def path_to_image_html(path):
-    #     return '<img src="'+ path + '" width="60">'
-    # df = pd.DataFrame.from_dict(releases).transpose()
-    # df.to_html('output.html', render_links=True, formatters=dict(img_url=path_to_image_html), escape=False)
