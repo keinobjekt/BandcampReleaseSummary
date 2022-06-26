@@ -12,9 +12,9 @@ import json
 
 # Arguments
 our_email = 'keinobjekt@gmail.com'
-max_results = 2
-before_date = '2022/04/20' # YYYY/MM/DD
-after_date = '2022/03/20' # YYYY/MM/DD
+max_results = 1200
+after_date = '2022/01/17' # YYYY/MM/DD
+before_date = '2022/06/26' # YYYY/MM/DD
 
 
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
@@ -87,10 +87,12 @@ def get_messages(service, ids, format):
 
     import pickle
 
-    with open("email_data.pkl", "wb") as a_file:
+    email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
+
+    with open(f"data/{email_data_file}", "wb+") as a_file:
         pickle.dump(raw_emails, a_file)
 
-    with open("email_data.pkl", "rb") as a_file:
+    with open(f"data/{email_data_file}", "rb") as a_file:
         raw_emails = pickle.load(a_file)
     
     return raw_emails
@@ -158,10 +160,12 @@ def parse_messages(raw_emails):
 
         print(f'Retrieving release data for {release_title} by {artist_name}')
     
-    with open("release_data.pkl", "wb") as a_file:
+    release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
+    
+    with open(f"data/{release_info_file}", "wb+") as a_file:
         pickle.dump(releases, a_file)
 
-    with open("release_data.pkl", "rb") as a_file:
+    with open(f"data/{release_info_file}", "rb") as a_file:
         releases = pickle.load(a_file)
 
     return releases
@@ -209,6 +213,10 @@ def generate_html(releases):
 
 
 if __name__ == "__main__":
+
+    from pathlib import Path
+    Path("data").mkdir(exist_ok=True)
+
     # get the Gmail API service
     service = gmail_authenticate()
 
@@ -219,7 +227,7 @@ if __name__ == "__main__":
     releases = parse_messages(raw_emails)
     html_data = generate_html(releases)
 
-    filename = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}.html'
+    filename = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.html'
 
     with open(filename, 'w') as file:
         file.write(html_data)
