@@ -15,6 +15,7 @@ our_email = 'keinobjekt@gmail.com'
 max_results = 1200
 after_date = '2022/01/17' # YYYY/MM/DD
 before_date = '2022/06/26' # YYYY/MM/DD
+results_per_output_page = 100
 
 use_cached_data = True
 
@@ -225,11 +226,13 @@ def generate_html(releases, output_dir_name):
         releases.append(construct_release())
 
     page = 1
-    releases_per_page = 100
+
+    from math import ceil
+    num_pages = int(ceil(len(releases) / results_per_output_page))
     
     while len(releases):
 
-        releases_this_page = releases[0:releases_per_page]
+        releases_this_page = releases[0:results_per_output_page]
         it = iter(releases_this_page)
 
         doc = '<html>'
@@ -256,13 +259,31 @@ def generate_html(releases, output_dir_name):
             doc += '</table>'
             doc += '</p>'
 
+        doc += '<p>'
+
+        page_links = ''
+
+        if page > 1:
+            page_links += f'<a href=page_{page-1}.html><</a> '
+        
+        for p in range(1, page):
+            page_links += f'<a href=page_{p}.html>{p}</a> '
+        page_links += f'<b>{page} </b> '
+        for p in range(page+1, num_pages+1):
+            page_links += f'<a href=page_{p}.html>{p}</a> '
+        
+        if page < num_pages:
+            page_links += f'<a href=page_{page+1}.html>></a>'
+
+        doc += page_links
+        doc += '</p>'
         doc += '</body>'
         doc += '</html>'
 
         with open(f'{output_dir_name}/page_{page}.html', 'w') as file:
             file.write(doc)
 
-        releases = releases[releases_per_page:]
+        releases = releases[results_per_output_page:]
 
         page += 1
 
