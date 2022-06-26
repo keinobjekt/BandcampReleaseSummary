@@ -16,6 +16,8 @@ max_results = 1200
 after_date = '2022/01/17' # YYYY/MM/DD
 before_date = '2022/06/26' # YYYY/MM/DD
 
+use_cached_data = True
+
 
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
 SCOPES = ['https://mail.google.com/']
@@ -69,28 +71,28 @@ def parse_release_url(message_text):
 
 def get_messages(service, ids, format):    
 
-    idx = 0
-    raw_emails = {}
-
-    while idx < len(ids):
-        print(f'Downloading messages {idx} to {min(idx+100, len(ids))}')
-        batch = service.new_batch_http_request()
-        for id in ids[idx:idx+100]:
-            batch.add(service.users().messages().get(userId = 'me', id = id, format=format))
-        batch.execute()
-        response_keys = [key for key in batch._responses]
-
-        for key in response_keys:
-            raw_email = json.loads(batch._responses[key][1])['raw']
-            raw_emails[str(idx)] = base64.urlsafe_b64decode(raw_email + '=' * (4 - len(raw_email) % 4))
-            idx += 1
-
-    import pickle
-
     email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
+    
+    if not use_cached_data:
 
-    with open(f"data/{email_data_file}", "wb+") as a_file:
-        pickle.dump(raw_emails, a_file)
+        idx = 0
+        raw_emails = {}
+
+        while idx < len(ids):
+            print(f'Downloading messages {idx} to {min(idx+100, len(ids))}')
+            batch = service.new_batch_http_request()
+            for id in ids[idx:idx+100]:
+                batch.add(service.users().messages().get(userId = 'me', id = id, format=format))
+            batch.execute()
+            response_keys = [key for key in batch._responses]
+
+            for key in response_keys:
+                raw_email = json.loads(batch._responses[key][1])['raw']
+                raw_emails[str(idx)] = base64.urlsafe_b64decode(raw_email + '=' * (4 - len(raw_email) % 4))
+                idx += 1
+
+        with open(f"data/{email_data_file}", "wb+") as a_file:
+            pickle.dump(raw_emails, a_file)
 
     with open(f"data/{email_data_file}", "rb") as a_file:
         raw_emails = pickle.load(a_file)
@@ -109,99 +111,102 @@ def construct_release(img_url=None, date=None, artist_name=None, release_title=N
     return release
         
 def parse_messages(raw_emails):
-    releases = []
-
-    for _, email in raw_emails.items():
-
-        s = email
-
-        try:
-            s = s.decode()
-        except:
-            s = str(s)
-
-        release_url = parse_release_url(s)
-
-        html_text = requests.get(release_url).text
-        soup = BeautifulSoup(html_text, 'html.parser')
-
-        # release title
-        release_title = soup.find('h2', class_="trackTitle")
-        if release_title is not None:
-            release_title = soup.find('h2', class_="trackTitle").text.strip()        
-        else:
-            print(f'Release title not found at {release_url}')
-            continue
-
-        # artist name
-        def parse_artist_name(input):
-            input = input.strip()
-            assert input[0:2] == 'by'
-            input = input [2:]
-            return input.strip()
-
-        artist_name = soup.find('h3')
-
-        if artist_name is not None:
-            artist_name = parse_artist_name(soup.find('h3').text)
-        else:
-            print(f'Artist name not found at {release_url}')
-            continue
-
-        # page name 
-        page_name = soup.findAll('span', class_="title")
-        if page_name is not None:
-            page_name = page_name[1].text.strip()
-        else:
-            print(f'Page name not found at {release_url}')
-            continue
-
-        # image url
-        img_idx_end = s.find('jpg') + 3
-        if img_idx_end == -1:
-            print (f'img_idx_end not found at {release_url}')
-            continue
-        img_idx_start = s[0:img_idx_end].rfind('http')
-        if img_idx_start == -1:
-            print (f'img_idx_start not found at {release_url}')
-            continue
-        img_url = s[img_idx_start:img_idx_end]
-
-        # date
-        date_idx = s.find('X-Google-Smtp-Source')
-        if date_idx == -1:
-            print (f'date_idx not found at {release_url}')
-            continue
-        date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
-        if date_idx_start == -1:
-            print (f'date_idx_start not found at {release_url}')
-            continue
-        date_len = s[date_idx_start:date_idx_start+200].find('\r')
-        if date_len == -1:
-            print (f'date_len not found at {release_url}')
-            continue
-
-        date_idx_end = date_idx_start + date_len
-        date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
-        date = date[0:16]
-
-        # release id
-        release_id = soup.find('meta', attrs={'name':'bc-page-properties'})
-        if release_id is not None:
-            release_id = eval(release_id["content"])['item_id']
-        else:
-            print (f'release_id not found at {release_url}')
-            continue
-            
-
-        releases.append(construct_release(img_url, date, artist_name, release_title, page_name, release_url, release_id))
-
-        print(f'Retrieving release data for {release_title} by {artist_name}')
     
     release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
     
-    with open(f"data/{release_info_file}", "wb+") as a_file:
-        pickle.dump(releases, a_file)
+    if not use_cached_data:
+
+        releases = []
+
+        for _, email in raw_emails.items():
+
+            s = email
+
+            try:
+                s = s.decode()
+            except:
+                s = str(s)
+
+            release_url = parse_release_url(s)
+
+            html_text = requests.get(release_url).text
+            soup = BeautifulSoup(html_text, 'html.parser')
+
+            # release title
+            release_title = soup.find('h2', class_="trackTitle")
+            if release_title is not None:
+                release_title = soup.find('h2', class_="trackTitle").text.strip()        
+            else:
+                print(f'Release title not found at {release_url}')
+                continue
+
+            # artist name
+            def parse_artist_name(input):
+                input = input.strip()
+                assert input[0:2] == 'by'
+                input = input [2:]
+                return input.strip()
+
+            artist_name = soup.find('h3')
+
+            if artist_name is not None:
+                artist_name = parse_artist_name(soup.find('h3').text)
+            else:
+                print(f'Artist name not found at {release_url}')
+                continue
+
+            # page name 
+            page_name = soup.findAll('span', class_="title")
+            if page_name is not None:
+                page_name = page_name[1].text.strip()
+            else:
+                print(f'Page name not found at {release_url}')
+                continue
+
+            # image url
+            img_idx_end = s.find('jpg') + 3
+            if img_idx_end == -1:
+                print (f'img_idx_end not found at {release_url}')
+                continue
+            img_idx_start = s[0:img_idx_end].rfind('http')
+            if img_idx_start == -1:
+                print (f'img_idx_start not found at {release_url}')
+                continue
+            img_url = s[img_idx_start:img_idx_end]
+
+            # date
+            date_idx = s.find('X-Google-Smtp-Source')
+            if date_idx == -1:
+                print (f'date_idx not found at {release_url}')
+                continue
+            date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
+            if date_idx_start == -1:
+                print (f'date_idx_start not found at {release_url}')
+                continue
+            date_len = s[date_idx_start:date_idx_start+200].find('\r')
+            if date_len == -1:
+                print (f'date_len not found at {release_url}')
+                continue
+
+            date_idx_end = date_idx_start + date_len
+            date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
+            date = date[0:16]
+
+            # release id
+            release_id = soup.find('meta', attrs={'name':'bc-page-properties'})
+            if release_id is not None:
+                release_id = eval(release_id["content"])['item_id']
+            else:
+                print (f'release_id not found at {release_url}')
+                continue
+                
+
+            releases.append(construct_release(img_url, date, artist_name, release_title, page_name, release_url, release_id))
+
+            print(f'Retrieving release data for {release_title} by {artist_name}')
+        
+        with open(f"data/{release_info_file}", "wb+") as a_file:
+            pickle.dump(releases, a_file)
 
     with open(f"data/{release_info_file}", "rb") as a_file:
         releases = pickle.load(a_file)
@@ -213,47 +218,63 @@ def get_widget_string(release_id, release_url):
     return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}">4 Star Volume 3 by Bay B Kane</a></iframe>'
 
 
-def generate_html(releases):
+def generate_html(releases, output_dir_name):
 
     odd_num_releases = len(releases) % 2 != 0
     if odd_num_releases: # append blank release to ensure releases list has an even number
         releases.append(construct_release())
 
-    doc = '<html>'
-    doc += '<body>'
+    page = 1
+    releases_per_page = 100
+    
+    while len(releases):
 
-    it = iter(releases)
-    for release1 in it:
-        release2 = next(it)
-        release_id_1 = release1['release_id']
-        release_id_2 = release2['release_id']
-        release_url_1 = release1['url']
-        release_url_2 = release2['url']
-        date_1 = release1['date']
-        date_2 = release2['date']
-        url_1 = release1['url']
-        url_2 = release2['url']
-        label_1 = release1['label']
-        label_2 = release2['label']
-        widget_string_1 = get_widget_string(release_id_1, release_url_1)
-        widget_string_2 = get_widget_string(release_id_2, release_url_2)
-        doc += '<p>'
-        doc += '<table>'
-        doc += f'<tr><th><a href="{url_1}">{date_1} / {label_1}<a></th> <th><a href="{url_2}">{date_2} / {label_2}</a></th></tr>'
-        doc += f'<tr><th>{widget_string_1}</th><th>{widget_string_2}</th></tr>'
-        doc += '</table>'
-        doc += '</p>'
+        releases_this_page = releases[0:releases_per_page]
+        it = iter(releases_this_page)
 
-    doc += '</body>'
-    doc += '</html>'
+        doc = '<html>'
+        doc += '<body>'
 
-    return doc
+        for release1 in it:
+            release2 = next(it)
+            release_id_1 = release1['release_id']
+            release_id_2 = release2['release_id']
+            release_url_1 = release1['url']
+            release_url_2 = release2['url']
+            date_1 = release1['date']
+            date_2 = release2['date']
+            url_1 = release1['url']
+            url_2 = release2['url']
+            label_1 = release1['label']
+            label_2 = release2['label']
+            widget_string_1 = get_widget_string(release_id_1, release_url_1)
+            widget_string_2 = get_widget_string(release_id_2, release_url_2)
+            doc += '<p>'
+            doc += '<table>'
+            doc += f'<tr><th><a href="{url_1}">{date_1} / {label_1}<a></th> <th><a href="{url_2}">{date_2} / {label_2}</a></th></tr>'
+            doc += f'<tr><th>{widget_string_1}</th><th>{widget_string_2}</th></tr>'
+            doc += '</table>'
+            doc += '</p>'
+
+        doc += '</body>'
+        doc += '</html>'
+
+        with open(f'{output_dir_name}/page_{page}.html', 'w') as file:
+            file.write(doc)
+
+        releases = releases[releases_per_page:]
+
+        page += 1
+
 
 
 if __name__ == "__main__":
 
+    output_dir_name = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
+
     from pathlib import Path
     Path("data").mkdir(exist_ok=True)
+    Path(output_dir_name).mkdir(exist_ok=True)
 
     # get the Gmail API service
     service = gmail_authenticate()
@@ -263,9 +284,4 @@ if __name__ == "__main__":
     message_ids = search_messages(service, search_query, max_results=max_results)
     raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
     releases = parse_messages(raw_emails)
-    html_data = generate_html(releases)
-
-    filename = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.html'
-
-    with open(filename, 'w') as file:
-        file.write(html_data)
+    html_data = generate_html(releases, output_dir_name)
