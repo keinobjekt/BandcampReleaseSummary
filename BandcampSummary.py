@@ -126,7 +126,12 @@ def parse_messages(raw_emails):
         soup = BeautifulSoup(html_text, 'html.parser')
 
         # release title
-        release_title = soup.find('h2', class_="trackTitle").text.strip()        
+        release_title = soup.find('h2', class_="trackTitle")
+        if release_title is not None:
+            release_title = soup.find('h2', class_="trackTitle").text.strip()        
+        else:
+            print(f'Release title not found at {release_url}')
+            continue
 
         # artist name
         def parse_artist_name(input):
@@ -135,26 +140,59 @@ def parse_messages(raw_emails):
             input = input [2:]
             return input.strip()
 
-        artist_name = parse_artist_name(soup.find('h3').text)
+        artist_name = soup.find('h3')
+
+        if artist_name is not None:
+            artist_name = parse_artist_name(soup.find('h3').text)
+        else:
+            print(f'Artist name not found at {release_url}')
+            continue
 
         # page name 
-        page_name = soup.findAll('span', class_="title")[1].text.strip()
+        page_name = soup.findAll('span', class_="title")
+        if page_name is not None:
+            page_name = page_name[1].text.strip()
+        else:
+            print(f'Page name not found at {release_url}')
+            continue
 
         # image url
         img_idx_end = s.find('jpg') + 3
+        if img_idx_end == -1:
+            print (f'img_idx_end not found at {release_url}')
+            continue
         img_idx_start = s[0:img_idx_end].rfind('http')
+        if img_idx_start == -1:
+            print (f'img_idx_start not found at {release_url}')
+            continue
         img_url = s[img_idx_start:img_idx_end]
 
         # date
         date_idx = s.find('X-Google-Smtp-Source')
+        if date_idx == -1:
+            print (f'date_idx not found at {release_url}')
+            continue
         date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
+        if date_idx_start == -1:
+            print (f'date_idx_start not found at {release_url}')
+            continue
         date_len = s[date_idx_start:date_idx_start+200].find('\r')
+        if date_len == -1:
+            print (f'date_len not found at {release_url}')
+            continue
+
         date_idx_end = date_idx_start + date_len
         date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
         date = date[0:16]
 
         # release id
-        release_id = eval(soup.find('meta', attrs={'name':'bc-page-properties'})["content"])['item_id']
+        release_id = soup.find('meta', attrs={'name':'bc-page-properties'})
+        if release_id is not None:
+            release_id = eval(release_id["content"])['item_id']
+        else:
+            print (f'release_id not found at {release_url}')
+            continue
+            
 
         releases.append(construct_release(img_url, date, artist_name, release_title, page_name, release_url, release_id))
 
