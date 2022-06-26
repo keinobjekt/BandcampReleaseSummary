@@ -12,7 +12,7 @@ import json
 
 # Arguments
 our_email = 'keinobjekt@gmail.com'
-max_results = 20
+max_results = 2
 before_date = '2022/04/20' # YYYY/MM/DD
 after_date = '2022/03/20' # YYYY/MM/DD
 
@@ -219,5 +219,7 @@ if __name__ == "__main__":
     releases = parse_messages(raw_emails)
     html_data = generate_html(releases)
 
-    with open('output.html', 'w') as file:
+    filename = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}.html'
+
+    with open(filename, 'w') as file:
         file.write(html_data)
