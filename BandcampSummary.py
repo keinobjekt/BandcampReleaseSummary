@@ -120,40 +120,38 @@ def parse_messages(raw_emails):
 
         releases_unsifted = []
 
+        # Parse emails for URL, image URL and date
         for _, email in raw_emails.items():
-
             s = email
-
             try:
                 s = s.decode()
             except:
                 s = str(s)
-
             release_url = parse_release_url(s)
 
             # image url
             img_idx_end = s.find('jpg') + 3
             if img_idx_end == -1:
-                print (f'img_idx_end not found at {release_url}')
+                print (f'img_idx_end not found for {release_url}')
                 continue
             img_idx_start = s[0:img_idx_end].rfind('http')
             if img_idx_start == -1:
-                print (f'img_idx_start not found at {release_url}')
+                print (f'img_idx_start not found for {release_url}')
                 continue
             img_url = s[img_idx_start:img_idx_end]
 
             # date
             date_idx = s.find('X-Google-Smtp-Source')
             if date_idx == -1:
-                print (f'date_idx not found at {release_url}')
+                print (f'date_idx not found for {release_url}')
                 continue
             date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
             if date_idx_start == -1:
-                print (f'date_idx_start not found at {release_url}')
+                print (f'date_idx_start not found for {release_url}')
                 continue
             date_len = s[date_idx_start:date_idx_start+200].find('\r')
             if date_len == -1:
-                print (f'date_len not found at {release_url}')
+                print (f'date_len not found for {release_url}')
                 continue
 
             date_idx_end = date_idx_start + date_len
@@ -191,7 +189,8 @@ def parse_messages(raw_emails):
             # artist name
             def parse_artist_name(input):
                 input = input.strip()
-                assert input[0:2] == 'by'
+                if (input[0:2] != 'by'):
+                    return None
                 input = input [2:]
                 return input.strip()
 
@@ -199,6 +198,9 @@ def parse_messages(raw_emails):
 
             if artist_name is not None:
                 artist_name = parse_artist_name(soup.find('h3').text)
+                if artist_name == None:
+                    print(f'Error parsing artist name at {release_url}')
+                    continue
             else:
                 print(f'Artist name not found at {release_url}')
                 continue
