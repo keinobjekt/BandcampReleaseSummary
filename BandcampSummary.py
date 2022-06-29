@@ -8,17 +8,13 @@ import base64
 import requests
 from bs4 import BeautifulSoup
 import json
+import argparse
+import datetime
+from pathlib import Path
 
 
-# Arguments
-our_email = 'keinobjekt@gmail.com'
-max_results = 20
-after_date = '2022/03/01' # YYYY/MM/DD
-before_date = '2022/06/26' # YYYY/MM/DD
-results_per_output_page = 100
-
+## Global settings ##
 use_cached_data = False
-
 
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
 SCOPES = ['https://mail.google.com/']
@@ -70,7 +66,7 @@ def parse_release_url(message_text):
     return release_url
 
 
-def get_messages(service, ids, format):    
+def get_messages(service, ids, format, max_results, before_date, after_date):    
 
     email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
     
@@ -111,7 +107,7 @@ def construct_release(release_url=None, date=None, img_url=None, artist_name=Non
     release['release_id'] = release_id
     return release
         
-def parse_messages(raw_emails):
+def parse_messages(raw_emails, max_results, before_date, after_date):
     
     print ('Parsing messages...')
     release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
@@ -241,8 +237,9 @@ def get_widget_string(release_id, release_url):
     return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}">4 Star Volume 3 by Bay B Kane</a></iframe>'
 
 
-def generate_html(releases, output_dir_name):
+def generate_html(releases, output_dir_name, results_pp):
 
+    print('Generating HTML...')
     odd_num_releases = len(releases) % 2 != 0
     if odd_num_releases: # append blank release to ensure releases list has an even number
         releases.append(construct_release())
@@ -250,11 +247,11 @@ def generate_html(releases, output_dir_name):
     page = 1
 
     from math import ceil
-    num_pages = int(ceil(len(releases) / results_per_output_page))
+    num_pages = int(ceil(len(releases) / results_pp))
     
     while len(releases):
 
-        releases_this_page = releases[0:results_per_output_page]
+        releases_this_page = releases[0:results_pp]
         it = iter(releases_this_page)
 
         doc = '<html>'
@@ -305,26 +302,58 @@ def generate_html(releases, output_dir_name):
         with open(f'{output_dir_name}/page_{page}.html', 'w') as file:
             file.write(doc)
 
-        releases = releases[results_per_output_page:]
+        releases = releases[results_pp:]
 
         page += 1
+        print(f'Writing {output_dir_name}/page_{page}.html...')
+
+    print('HTML generated!')
 
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Scrape Gmail for Bandcamp release notifications and generate an HTML file of Bandcamp player widgets.")
+    
+    max_results = 20
+    after_date = '2022/03/01' # YYYY/MM/DD
+    before_date = '2022/06/26' # YYYY/MM/DD
+    results_pp = 100
 
+    parser.add_argument("-e", "--earliest",     help="Earliest date",               default="2022/04/01",   type=str)
+    parser.add_argument("-l", "--latest",       help="Latest date",                 default="2022/05/01",   type=str)
+    parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=100,            type=int)
+    parser.add_argument("-r", "--results_pp",   help="Results per output page",     default=50,             type=int)
+
+    args = parser.parse_args()
+
+    max_results = args.max_results
+    after_date  = args.earliest
+    before_date = args.latest
+    results_pp  = args.results_pp
+
+    # Validate args
+    def validate(date_text):
+        try:
+            date = datetime.datetime.strptime(date_text, '%Y/%m/%d')
+        except ValueError:
+            raise ValueError("Incorrect data format, should be YYYY/MM/DD")
+        if date.year < 2000 or date.year > datetime.datetime.now().year:
+            raise ValueError("Year must be between 2000 and today")    
+
+    validate(after_date)
+    validate(before_date)
+
+    # Create output directory
     output_dir_name = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
-
-    from pathlib import Path
     Path("data").mkdir(exist_ok=True)
     Path(output_dir_name).mkdir(exist_ok=True)
 
     # get the Gmail API service
     service = gmail_authenticate()
 
+    # Do the thing
     search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{before_date} after:{after_date}"
-
     message_ids = search_messages(service, search_query, max_results=max_results)
-    raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
-    releases = parse_messages(raw_emails)
-    html_data = generate_html(releases, output_dir_name)
+    raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw', max_results, before_date, after_date)
+    releases = parse_messages(raw_emails, max_results, before_date, after_date)
+    generate_html(releases, output_dir_name, results_pp)
