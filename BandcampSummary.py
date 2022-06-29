@@ -12,12 +12,12 @@ import json
 
 # Arguments
 our_email = 'keinobjekt@gmail.com'
-max_results = 1200
-after_date = '2022/01/17' # YYYY/MM/DD
+max_results = 20
+after_date = '2022/03/01' # YYYY/MM/DD
 before_date = '2022/06/26' # YYYY/MM/DD
 results_per_output_page = 100
 
-use_cached_data = True
+use_cached_data = False
 
 
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
@@ -100,7 +100,7 @@ def get_messages(service, ids, format):
     
     return raw_emails
 
-def construct_release(img_url=None, date=None, artist_name=None, release_title=None, page_name=None, release_url=None, release_id=None):
+def construct_release(release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
     release = {}
     release['img_url'] = img_url
     release['date'] = date
@@ -113,11 +113,12 @@ def construct_release(img_url=None, date=None, artist_name=None, release_title=N
         
 def parse_messages(raw_emails):
     
+    print ('Parsing messages...')
     release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
     
     if not use_cached_data:
 
-        releases = []
+        releases_unsifted = []
 
         for _, email in raw_emails.items():
 
@@ -129,6 +130,52 @@ def parse_messages(raw_emails):
                 s = str(s)
 
             release_url = parse_release_url(s)
+
+            # image url
+            img_idx_end = s.find('jpg') + 3
+            if img_idx_end == -1:
+                print (f'img_idx_end not found at {release_url}')
+                continue
+            img_idx_start = s[0:img_idx_end].rfind('http')
+            if img_idx_start == -1:
+                print (f'img_idx_start not found at {release_url}')
+                continue
+            img_url = s[img_idx_start:img_idx_end]
+
+            # date
+            date_idx = s.find('X-Google-Smtp-Source')
+            if date_idx == -1:
+                print (f'date_idx not found at {release_url}')
+                continue
+            date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
+            if date_idx_start == -1:
+                print (f'date_idx_start not found at {release_url}')
+                continue
+            date_len = s[date_idx_start:date_idx_start+200].find('\r')
+            if date_len == -1:
+                print (f'date_len not found at {release_url}')
+                continue
+
+            date_idx_end = date_idx_start + date_len
+            date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
+            date = date[0:16]
+
+            releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url))
+
+        # Sift releases with identical urls
+        print ('Discarding releases with identical URLS...')
+        releases = []
+        release_urls = []
+        for release in releases_unsifted:
+            if release['url'] not in release_urls:
+                release_urls.append(release['url'])
+                releases.append(construct_release(date=release['date'], img_url=release['img_url'], release_url=release['url']))
+
+        print (f'Removed duplicated releases - originally {len(releases_unsifted)}, now {len(releases)}')
+
+        # Scrape the rest of the info from bandcamp page
+        for release in releases:
+            release_url = release['url']
 
             html_text = requests.get(release_url).text
             soup = BeautifulSoup(html_text, 'html.parser')
@@ -164,35 +211,6 @@ def parse_messages(raw_emails):
                 print(f'Page name not found at {release_url}')
                 continue
 
-            # image url
-            img_idx_end = s.find('jpg') + 3
-            if img_idx_end == -1:
-                print (f'img_idx_end not found at {release_url}')
-                continue
-            img_idx_start = s[0:img_idx_end].rfind('http')
-            if img_idx_start == -1:
-                print (f'img_idx_start not found at {release_url}')
-                continue
-            img_url = s[img_idx_start:img_idx_end]
-
-            # date
-            date_idx = s.find('X-Google-Smtp-Source')
-            if date_idx == -1:
-                print (f'date_idx not found at {release_url}')
-                continue
-            date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
-            if date_idx_start == -1:
-                print (f'date_idx_start not found at {release_url}')
-                continue
-            date_len = s[date_idx_start:date_idx_start+200].find('\r')
-            if date_len == -1:
-                print (f'date_len not found at {release_url}')
-                continue
-
-            date_idx_end = date_idx_start + date_len
-            date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
-            date = date[0:16]
-
             # release id
             release_id = soup.find('meta', attrs={'name':'bc-page-properties'})
             if release_id is not None:
@@ -201,8 +219,10 @@ def parse_messages(raw_emails):
                 print (f'release_id not found at {release_url}')
                 continue
                 
-
-            releases.append(construct_release(img_url, date, artist_name, release_title, page_name, release_url, release_id))
+            release['artist_name'] = artist_name
+            release['release_title'] = release_title
+            release['page_name'] = page_name
+            release['release_id'] = release_id
 
             print(f'Retrieving release data for {release_title} by {artist_name}')
         
