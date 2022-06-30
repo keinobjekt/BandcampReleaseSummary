@@ -112,7 +112,7 @@ def construct_release(release_url=None, date=None, img_url=None, artist_name=Non
 
         
 def get_widget_string(release_id, release_url):
-    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}">4 Star Volume 3 by Bay B Kane</a></iframe>'
+    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
 
 
 def parse_messages(raw_emails, max_results, before_date, after_date):
