@@ -13,8 +13,10 @@ import datetime
 from pathlib import Path
 
 
-## Global settings ##
+## Debug settings ##
 use_cached_data = False
+
+
 
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
 SCOPES = ['https://mail.google.com/']
@@ -52,20 +54,6 @@ def search_messages(service, query, max_results=100):
     return messages
 
 
-def parse_release_url(message_text):
-    release_url = None
-    search_string = 'a href="https://'
-    start_idx = message_text.find(search_string)
-    if start_idx >= 0:
-        url_start_idx = message_text.find(search_string) + 8
-        url_end_idx = message_text.find('"', url_start_idx)
-        url_qmark_idx = message_text.find('?', url_start_idx)
-        if url_end_idx > url_start_idx:
-            end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
-            release_url = message_text[url_start_idx:end_idx]
-    return release_url
-
-
 def get_messages(service, ids, format, max_results, before_date, after_date):    
 
     email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
@@ -96,6 +84,21 @@ def get_messages(service, ids, format, max_results, before_date, after_date):
     
     return raw_emails
 
+
+def parse_release_url(message_text):
+    release_url = None
+    search_string = 'a href="https://'
+    start_idx = message_text.find(search_string)
+    if start_idx >= 0:
+        url_start_idx = message_text.find(search_string) + 8
+        url_end_idx = message_text.find('"', url_start_idx)
+        url_qmark_idx = message_text.find('?', url_start_idx)
+        if url_end_idx > url_start_idx:
+            end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
+            release_url = message_text[url_start_idx:end_idx]
+    return release_url
+
+
 def construct_release(release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
     release = {}
     release['img_url'] = img_url
@@ -106,7 +109,12 @@ def construct_release(release_url=None, date=None, img_url=None, artist_name=Non
     release['url'] = release_url
     release['release_id'] = release_id
     return release
+
         
+def get_widget_string(release_id, release_url):
+    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}">4 Star Volume 3 by Bay B Kane</a></iframe>'
+
+
 def parse_messages(raw_emails, max_results, before_date, after_date):
     
     print ('Parsing messages...')
@@ -231,10 +239,6 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
         releases = pickle.load(a_file)
 
     return releases
-
-
-def get_widget_string(release_id, release_url):
-    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}">4 Star Volume 3 by Bay B Kane</a></iframe>'
 
 
 def generate_html(releases, output_dir_name, results_pp):
