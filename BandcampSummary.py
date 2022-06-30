@@ -17,6 +17,40 @@ from pathlib import Path
 use_cached_data = False
 
 
+# ------------------------------------------------------------------------ UTIL 
+
+def parse_release_url(message_text):
+    release_url = None
+    search_string = 'a href="https://'
+    start_idx = message_text.find(search_string)
+    if start_idx >= 0:
+        url_start_idx = message_text.find(search_string) + 8
+        url_end_idx = message_text.find('"', url_start_idx)
+        url_qmark_idx = message_text.find('?', url_start_idx)
+        if url_end_idx > url_start_idx:
+            end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
+            release_url = message_text[url_start_idx:end_idx]
+    return release_url
+
+
+def construct_release(release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
+    release = {}
+    release['img_url'] = img_url
+    release['date'] = date
+    release['artist'] = artist_name
+    release['title'] = release_title
+    release['label'] = page_name
+    release['url'] = release_url
+    release['release_id'] = release_id
+    return release
+
+        
+def get_widget_string(release_id, release_url):
+    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
+
+
+
+# ------------------------------------------------------------------------ GMAIL
 
 # Request all access (permission to read/send/receive emails, manage the inbox, and more)
 SCOPES = ['https://mail.google.com/']
@@ -85,35 +119,8 @@ def get_messages(service, ids, format, max_results, before_date, after_date):
     return raw_emails
 
 
-def parse_release_url(message_text):
-    release_url = None
-    search_string = 'a href="https://'
-    start_idx = message_text.find(search_string)
-    if start_idx >= 0:
-        url_start_idx = message_text.find(search_string) + 8
-        url_end_idx = message_text.find('"', url_start_idx)
-        url_qmark_idx = message_text.find('?', url_start_idx)
-        if url_end_idx > url_start_idx:
-            end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
-            release_url = message_text[url_start_idx:end_idx]
-    return release_url
 
-
-def construct_release(release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
-    release = {}
-    release['img_url'] = img_url
-    release['date'] = date
-    release['artist'] = artist_name
-    release['title'] = release_title
-    release['label'] = page_name
-    release['url'] = release_url
-    release['release_id'] = release_id
-    return release
-
-        
-def get_widget_string(release_id, release_url):
-    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
-
+# ------------------------------------------------------------------------ PARSING + PROCESSING
 
 def parse_messages(raw_emails, max_results, before_date, after_date):
     
@@ -239,6 +246,7 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
         releases = pickle.load(a_file)
 
     return releases
+
 
 
 def generate_html(releases, output_dir_name, results_pp):
