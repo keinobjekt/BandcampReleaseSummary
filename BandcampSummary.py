@@ -39,7 +39,7 @@ def construct_release(release_url=None, date=None, img_url=None, artist_name=Non
     release['date'] = date
     release['artist'] = artist_name
     release['title'] = release_title
-    release['label'] = page_name
+    release['page_name'] = page_name
     release['url'] = release_url
     release['release_id'] = release_id
     return release
@@ -279,13 +279,13 @@ def generate_html(releases, output_dir_name, results_pp):
             date_2 = release2['date']
             url_1 = release1['url']
             url_2 = release2['url']
-            label_1 = release1['label']
-            label_2 = release2['label']
+            page_name_1 = release1['page_name']
+            page_name_2 = release2['page_name']
             widget_string_1 = get_widget_string(release_id_1, release_url_1)
             widget_string_2 = get_widget_string(release_id_2, release_url_2)
             doc += '<p>'
             doc += '<table>'
-            doc += f'<tr><th><a href="{url_1}">{date_1} / {label_1}<a></th> <th><a href="{url_2}">{date_2} / {label_2}</a></th></tr>'
+            doc += f'<tr><th><a href="{url_1}">{date_1} / {page_name_1}<a></th> <th><a href="{url_2}">{date_2} / {page_name_2}</a></th></tr>'
             doc += f'<tr><th>{widget_string_1}</th><th>{widget_string_2}</th></tr>'
             doc += '</table>'
             doc += '</p>'
@@ -331,9 +331,9 @@ if __name__ == "__main__":
     before_date = '2022/06/26' # YYYY/MM/DD
     results_pp = 100
 
-    parser.add_argument("-e", "--earliest",     help="Earliest date",               default="2022/04/01",   type=str)
-    parser.add_argument("-l", "--latest",       help="Latest date",                 default="2022/05/01",   type=str)
-    parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=2000,           type=int)
+    parser.add_argument("-e", "--earliest",     help="Earliest date",               default="2022/09/01",   type=str)
+    parser.add_argument("-l", "--latest",       help="Latest date",                 default="2022/10/01",   type=str)
+    parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=2,             type=int)
     parser.add_argument("-r", "--results_pp",   help="Results per output page",     default=50,             type=int)
 
     args = parser.parse_args()
