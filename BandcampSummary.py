@@ -333,7 +333,7 @@ if __name__ == "__main__":
 
     parser.add_argument("-e", "--earliest",     help="Earliest date",               default="2022/09/01",   type=str)
     parser.add_argument("-l", "--latest",       help="Latest date",                 default="2022/10/01",   type=str)
-    parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=2,             type=int)
+    parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=2000,           type=int)
     parser.add_argument("-r", "--results_pp",   help="Results per output page",     default=50,             type=int)
 
     args = parser.parse_args()
