@@ -280,10 +280,12 @@ def generate_html(releases, output_dir_name, results_pp):
         def get_bc_page_url(url, is_track):
             # we can't just search for ".com" here because the url is sometimes
             # a custom label domain
-            if is_track:
-                page_url = url.rsplit("/track/")[0]
-            else:
-                page_url = url.rsplit("/album/")[0]
+            page_url = None
+            if url is not None:
+                if is_track:
+                    page_url = url.rsplit("/track/")[0]
+                else:
+                    page_url = url.rsplit("/album/")[0]
             return page_url
 
         for release1 in it:
