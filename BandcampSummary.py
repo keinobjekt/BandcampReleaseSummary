@@ -277,6 +277,15 @@ def generate_html(releases, output_dir_name, results_pp):
         doc = '<html>'
         doc += '<body>'
 
+        def get_bc_page_url(url, is_track):
+            # we can't just search for ".com" here because the url is sometimes
+            # a custom label domain
+            if is_track:
+                page_url = url.rsplit("/track/")[0]
+            else:
+                page_url = url.rsplit("/album/")[0]
+            return page_url
+
         for release1 in it:
             release2 = next(it)
             release_id_1 = release1['release_id']
@@ -287,16 +296,17 @@ def generate_html(releases, output_dir_name, results_pp):
             is_track_2 = release2['is_track']
             date_1 = release1['date']
             date_2 = release2['date']
-            url_1 = release1['url']
-            url_2 = release2['url']
+            page_url_1 = get_bc_page_url(release_url_1, is_track_1)
+            page_url_2 = get_bc_page_url(release_url_2, is_track_2)
             page_name_1 = release1['page_name']
             page_name_2 = release2['page_name']
             widget_string_1 = get_widget_string(release_id_1, release_url_1, is_track_1)
             widget_string_2 = get_widget_string(release_id_2, release_url_2, is_track_2)
             doc += '<p>'
             doc += '<table>'
-            doc += f'<tr><th><a href="{url_1}">{date_1} / {page_name_1}<a></th> <th><a href="{url_2}">{date_2} / {page_name_2}</a></th></tr>'
-            doc += f'<tr><th>{widget_string_1}</th><th>{widget_string_2}</th></tr>'
+            doc += f'<b><tr><th>{date_1} / {page_name_1}</th> <th>{date_2} / {page_name_2}</th></tr></b>'
+            doc += f'<tr><td align="center"><i><a href="{release_url_1}">{page_url_1}</a></i></td> <td align="center"><i><a href="{release_url_2}">{page_url_2}</a></i></td></tr>'
+            doc += f'<tr><td>{widget_string_1}</td><td>{widget_string_2}</td></tr>'
             doc += '</table>'
             doc += '</p>'
 
