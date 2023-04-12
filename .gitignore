@@ -1,0 +1,6 @@
+*.pkl
+*.html
+*.json
+.DS_Store
+*.data
+*.pickle
