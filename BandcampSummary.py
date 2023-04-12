@@ -331,7 +331,7 @@ if __name__ == "__main__":
     before_date = '2022/06/26' # YYYY/MM/DD
     results_pp = 100
 
-    parser.add_argument("-e", "--earliest",     help="Earliest date",               default="2022/10/01",   type=str)
+    parser.add_argument("-e", "--earliest",     help="Earliest date",               default="",             type=str)
     parser.add_argument("-l", "--latest",       help="Latest date",                 default="today",        type=str)
     parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=2000,           type=int)
     parser.add_argument("-r", "--results_pp",   help="Results per output page",     default=50,             type=int)
