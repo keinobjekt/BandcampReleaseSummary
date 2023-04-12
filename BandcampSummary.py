@@ -33,7 +33,7 @@ def parse_release_url(message_text):
     return release_url
 
 
-def construct_release(release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
+def construct_release(is_track=None, release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
     release = {}
     release['img_url'] = img_url
     release['date'] = date
@@ -42,11 +42,15 @@ def construct_release(release_url=None, date=None, img_url=None, artist_name=Non
     release['page_name'] = page_name
     release['url'] = release_url
     release['release_id'] = release_id
+    release['is_track'] = is_track
     return release
 
         
-def get_widget_string(release_id, release_url):
-    return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
+def get_widget_string(release_id, release_url, is_track):
+    if is_track:
+        return f'<iframe style="border: 0; width: 400px; height: 120px;" src="https://bandcamp.com/EmbeddedPlayer/track={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/tracklist=false/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
+    else:
+        return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
 
 
 
@@ -139,6 +143,7 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
             except:
                 s = str(s)
             release_url = parse_release_url(s)
+            is_track = "bandcamp.com/track" in release_url
 
             # image url
             img_idx_end = s.find('jpg') + 3
@@ -169,7 +174,7 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
             date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
             date = date[0:16]
 
-            releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url))
+            releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url, is_track=is_track))
 
         # Sift releases with identical urls
         print ('Discarding releases with identical URLS...')
@@ -178,7 +183,10 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
         for release in releases_unsifted:
             if release['url'] not in release_urls:
                 release_urls.append(release['url'])
-                releases.append(construct_release(date=release['date'], img_url=release['img_url'], release_url=release['url']))
+                releases.append(construct_release(is_track=release['is_track'],
+                                                  date=release['date'], 
+                                                  img_url=release['img_url'], 
+                                                  release_url=release['url']))
 
         print (f'Removed duplicated releases - originally {len(releases_unsifted)}, now {len(releases)}')
 
@@ -275,14 +283,16 @@ def generate_html(releases, output_dir_name, results_pp):
             release_id_2 = release2['release_id']
             release_url_1 = release1['url']
             release_url_2 = release2['url']
+            is_track_1 = release1['is_track']
+            is_track_2 = release2['is_track']
             date_1 = release1['date']
             date_2 = release2['date']
             url_1 = release1['url']
             url_2 = release2['url']
             page_name_1 = release1['page_name']
             page_name_2 = release2['page_name']
-            widget_string_1 = get_widget_string(release_id_1, release_url_1)
-            widget_string_2 = get_widget_string(release_id_2, release_url_2)
+            widget_string_1 = get_widget_string(release_id_1, release_url_1, is_track_1)
+            widget_string_2 = get_widget_string(release_id_2, release_url_2, is_track_2)
             doc += '<p>'
             doc += '<table>'
             doc += f'<tr><th><a href="{url_1}">{date_1} / {page_name_1}<a></th> <th><a href="{url_2}">{date_2} / {page_name_2}</a></th></tr>'
