@@ -1,0 +1,7 @@
+google-api-python-client
+google-auth-oauthlib
+requests
+bs4
+argparse
+datetime
+pathlib
