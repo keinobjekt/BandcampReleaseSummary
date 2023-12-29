@@ -14,12 +14,102 @@ from pathlib import Path
 
 
 ## Debug settings ##
-k_no_download = True
+k_no_download = False
 
 
-# ------------------------------------------------------------------------ UTIL 
 
-def extract_info_from_email(email_text):
+# ------------------------------------------------------------------------ 
+# UTIL
+# ------------------------------------------------------------------------ 
+
+# ------------------------------------------------------------------------ 
+def construct_release(is_track=None, release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
+    release = {}
+    release['img_url'] = img_url
+    release['date'] = date
+    release['artist'] = artist_name
+    release['title'] = release_title
+    release['page_name'] = page_name
+    release['url'] = release_url
+    release['release_id'] = release_id
+    release['is_track'] = is_track
+    return release
+
+        
+# ------------------------------------------------------------------------ 
+def get_widget_string(release_id, release_url, is_track):
+    if is_track:
+        return f'<iframe style="border: 0; width: 400px; height: 120px;" src="https://bandcamp.com/EmbeddedPlayer/track={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/tracklist=false/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
+    else:
+        return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
+
+
+# ------------------------------------------------------------------------ 
+# GMAIL
+# ------------------------------------------------------------------------ 
+    
+# ------------------------------------------------------------------------ 
+def gmail_authenticate():
+    SCOPES = ['https://mail.google.com/'] # Request all access (permission to read/send/receive emails, manage the inbox, and more)
+
+    creds = None
+    # the file token.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first time
+    if os.path.exists("token.pickle"):
+        with open("token.pickle", "rb") as token:
+            creds = pickle.load(token)
+    # if there are no (valid) credentials availablle, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        # save the credentials for the next run
+        with open("token.pickle", "wb") as token:
+            pickle.dump(creds, token)
+    return build('gmail', 'v1', credentials=creds)
+
+# ------------------------------------------------------------------------ 
+def search_messages(service, query, max_results=100):
+    result = service.users().messages().list(userId='me',q=query, maxResults=max_results).execute()
+    messages = [ ]
+    if 'messages' in result:
+        messages.extend(result['messages'])
+    while len(messages) < max_results and 'nextPageToken' in result:
+        page_token = result['nextPageToken']
+        result = service.users().messages().list(userId='me',q=query, pageToken=page_token).execute()
+        if 'messages' in result:
+            messages.extend(result['messages'])
+    return messages
+
+# ------------------------------------------------------------------------ 
+def get_messages(service, ids, format):
+    idx = 0
+    raw_emails = {}
+
+    while idx < len(ids):
+        print(f'Downloading messages {idx} to {min(idx+100, len(ids))}')
+        batch = service.new_batch_http_request()
+        for id in ids[idx:idx+100]:
+            batch.add(service.users().messages().get(userId = 'me', id = id, format=format))
+        batch.execute()
+        response_keys = [key for key in batch._responses]
+
+        for key in response_keys:
+            raw_email = json.loads(batch._responses[key][1])['raw']
+            raw_emails[str(idx)] = base64.urlsafe_b64decode(raw_email + '=' * (4 - len(raw_email) % 4))
+            idx += 1
+
+    return raw_emails
+
+
+# ------------------------------------------------------------------------ 
+# SCRAPING & PARSING, COMPILING LIST OF RELEASES, GENERATING HTML
+# ------------------------------------------------------------------------ 
+
+# ------------------------------------------------------------------------ 
+def scrape_info_from_email(email_text):
     date = None
     img_url = None
     release_url = None
@@ -43,7 +133,7 @@ def extract_info_from_email(email_text):
             end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
             release_url = s[url_start_idx:end_idx]
 
-    #is_track
+    # track (vs release) flag
     is_track = "bandcamp.com/track" in release_url
 
     # image url
@@ -78,198 +168,93 @@ def extract_info_from_email(email_text):
     return date, img_url, release_url, is_track
 
 
-def construct_release(is_track=None, release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
-    release = {}
-    release['img_url'] = img_url
-    release['date'] = date
-    release['artist'] = artist_name
-    release['title'] = release_title
-    release['page_name'] = page_name
-    release['url'] = release_url
-    release['release_id'] = release_id
-    release['is_track'] = is_track
+# ------------------------------------------------------------------------ 
+def scrape_bandcamp_page(release):
+    release_url = release['url']
+
+    html_text = requests.get(release_url).text
+    soup = BeautifulSoup(html_text, 'html.parser')
+
+    # release title
+    release['release_title'] = soup.find('h2', class_="trackTitle")
+    if release['release_title'] is not None:
+        release['release_title'] = soup.find('h2', class_="trackTitle").text.strip()        
+    else:
+        print(f'Release title not found at {release_url}')
+        return release
+
+    # artist name
+    def parse_artist_name(input):
+        input = input.strip()
+        if (input[0:2] != 'by'):
+            return None
+        input = input [2:]
+        return input.strip()
+
+    release['artist_name'] = soup.find('h3')
+
+    if release['artist_name'] is not None:
+        release['artist_name'] = parse_artist_name(soup.find('h3').text)
+        if release['artist_name'] == None:
+            print(f'Error parsing artist name at {release_url}')
+            return release
+    else:
+        print(f'Artist name not found at {release_url}')
+        return release
+
+    # page name 
+    release['page_name'] = soup.findAll('span', class_="title")
+    if release['page_name'] is not None:
+        release['page_name'] = release['page_name'][1].text.strip()
+    else:
+        print(f'Page name not found at {release_url}')
+        return release
+
+    # release id
+    release['release_id'] = soup.find('meta', attrs={'name':'bc-page-properties'})
+    if release['release_id'] is not None:
+        release['release_id'] = eval(release['release_id']["content"])['item_id']
+    else:
+        print (f'Release ID not found at {release_url}')
+        return release
+
+    print(f"Retrieved release data for {release['release_title']} by {release['artist_name']}")
+
     return release
 
-        
-def get_widget_string(release_id, release_url, is_track):
-    if is_track:
-        return f'<iframe style="border: 0; width: 400px; height: 120px;" src="https://bandcamp.com/EmbeddedPlayer/track={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/tracklist=false/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
-    else:
-        return f'<iframe style="border: 0; width: 400px; height: 274px;" src="https://bandcamp.com/EmbeddedPlayer/album={release_id}/size=large/bgcol=ffffff/linkcol=0687f5/artwork=small/transparent=true/" seamless><a href="{release_url}"></a></iframe>'
 
+# ------------------------------------------------------------------------ 
+def compile_release_list(raw_emails):
 
-
-# ------------------------------------------------------------------------ GMAIL
-
-# Request all access (permission to read/send/receive emails, manage the inbox, and more)
-SCOPES = ['https://mail.google.com/']
-
-def gmail_authenticate():
-    creds = None
-    # the file token.pickle stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first time
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
-            creds = pickle.load(token)
-    # if there are no (valid) credentials availablle, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # save the credentials for the next run
-        with open("token.pickle", "wb") as token:
-            pickle.dump(creds, token)
-    return build('gmail', 'v1', credentials=creds)
-
-
-def search_messages(service, query, max_results=100):
-    result = service.users().messages().list(userId='me',q=query, maxResults=max_results).execute()
-    messages = [ ]
-    if 'messages' in result:
-        messages.extend(result['messages'])
-    while len(messages) < max_results and 'nextPageToken' in result:
-        page_token = result['nextPageToken']
-        result = service.users().messages().list(userId='me',q=query, pageToken=page_token).execute()
-        if 'messages' in result:
-            messages.extend(result['messages'])
-    return messages
-
-
-def get_messages(service, ids, format, max_results, before_date, after_date):    
-
-    email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
-    
-
-    if k_no_download:
-        with open(f"data/{email_data_file}", "rb") as a_file:
-            raw_emails = pickle.load(a_file)
-
-    else:
-
-        idx = 0
-        raw_emails = {}
-
-        while idx < len(ids):
-            print(f'Downloading messages {idx} to {min(idx+100, len(ids))}')
-            batch = service.new_batch_http_request()
-            for id in ids[idx:idx+100]:
-                batch.add(service.users().messages().get(userId = 'me', id = id, format=format))
-            batch.execute()
-            response_keys = [key for key in batch._responses]
-
-            for key in response_keys:
-                raw_email = json.loads(batch._responses[key][1])['raw']
-                raw_emails[str(idx)] = base64.urlsafe_b64decode(raw_email + '=' * (4 - len(raw_email) % 4))
-                idx += 1
-
-        with open(f"data/{email_data_file}", "wb+") as a_file:
-            pickle.dump(raw_emails, a_file)
-    
-    return raw_emails
-
-
-
-# ------------------------------------------------------------------------ PARSING + PROCESSING
-
-def parse_messages(raw_emails, max_results, before_date, after_date):
-    
     print ('Parsing messages...')
-    release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
-    
-    if k_no_download:
-        with open(f"data/{release_info_file}", "rb") as a_file:
-            releases = pickle.load(a_file)
-
-    else:
-        releases_unsifted = []
-
-        # Parse emails for URL, image URL and date
-        for _, email in raw_emails.items():
-            date, img_url, release_url, is_track = extract_info_from_email(email)
-            
-            if not all(x==None for x in [date, img_url, release_url, is_track]):                
-                releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url, is_track=is_track))
-
-        # Sift releases with identical urls
-        print ('Discarding releases with identical URLS...')
-        releases = []
-        release_urls = []
-        for release in releases_unsifted:
-            if release['url'] not in release_urls:
-                release_urls.append(release['url'])
-                releases.append(construct_release(is_track=release['is_track'],
-                                                  date=release['date'], 
-                                                  img_url=release['img_url'], 
-                                                  release_url=release['url']))
-
-        print (f'Removed duplicated releases - originally {len(releases_unsifted)}, now {len(releases)}')
-
-        # Scrape the rest of the info from bandcamp page
-        for release in releases:
-            release_url = release['url']
-
-            html_text = requests.get(release_url).text
-            soup = BeautifulSoup(html_text, 'html.parser')
-
-            # release title
-            release_title = soup.find('h2', class_="trackTitle")
-            if release_title is not None:
-                release_title = soup.find('h2', class_="trackTitle").text.strip()        
-            else:
-                print(f'Release title not found at {release_url}')
-                continue
-
-            # artist name
-            def parse_artist_name(input):
-                input = input.strip()
-                if (input[0:2] != 'by'):
-                    return None
-                input = input [2:]
-                return input.strip()
-
-            artist_name = soup.find('h3')
-
-            if artist_name is not None:
-                artist_name = parse_artist_name(soup.find('h3').text)
-                if artist_name == None:
-                    print(f'Error parsing artist name at {release_url}')
-                    continue
-            else:
-                print(f'Artist name not found at {release_url}')
-                continue
-
-            # page name 
-            page_name = soup.findAll('span', class_="title")
-            if page_name is not None:
-                page_name = page_name[1].text.strip()
-            else:
-                print(f'Page name not found at {release_url}')
-                continue
-
-            # release id
-            release_id = soup.find('meta', attrs={'name':'bc-page-properties'})
-            if release_id is not None:
-                release_id = eval(release_id["content"])['item_id']
-            else:
-                print (f'release_id not found at {release_url}')
-                continue
-                
-            release['artist_name'] = artist_name
-            release['release_title'] = release_title
-            release['page_name'] = page_name
-            release['release_id'] = release_id
-
-            print(f'Retrieving release data for {release_title} by {artist_name}')
+    releases_unsifted = []
+    for _, email in raw_emails.items():
+        date, img_url, release_url, is_track = scrape_info_from_email(email)
         
-        with open(f"data/{release_info_file}", "wb+") as a_file:
-            pickle.dump(releases, a_file)
+        if not all(x==None for x in [date, img_url, release_url, is_track]):                
+            releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url, is_track=is_track))
+
+    # Sift releases with identical urls
+    print ('Discarding releases with identical URLS...')
+    releases = []
+    release_urls = []
+    for release in releases_unsifted:
+        if release['url'] not in release_urls:
+            release_urls.append(release['url'])
+            releases.append(construct_release(is_track=release['is_track'],
+                                                date=release['date'], 
+                                                img_url=release['img_url'], 
+                                                release_url=release['url']))
+    print (f'Removed duplicated releases - originally {len(releases_unsifted)}, now {len(releases)}')
+
+    # Scrape the rest of the info from bandcamp page
+    for release in releases:
+        release = scrape_bandcamp_page (release)
 
     return releases
 
 
-
+# ------------------------------------------------------------------------ 
 def generate_html(releases, output_dir_name, results_pp):
 
     print('Generating HTML...')
@@ -303,24 +288,14 @@ def generate_html(releases, output_dir_name, results_pp):
 
         for release1 in it:
             release2 = next(it)
-            release_id_1 = release1['release_id']
-            release_id_2 = release2['release_id']
-            release_url_1 = release1['url']
-            release_url_2 = release2['url']
-            is_track_1 = release1['is_track']
-            is_track_2 = release2['is_track']
-            date_1 = release1['date']
-            date_2 = release2['date']
-            page_url_1 = get_bc_page_url(release_url_1, is_track_1)
-            page_url_2 = get_bc_page_url(release_url_2, is_track_2)
-            page_name_1 = release1['page_name']
-            page_name_2 = release2['page_name']
-            widget_string_1 = get_widget_string(release_id_1, release_url_1, is_track_1)
-            widget_string_2 = get_widget_string(release_id_2, release_url_2, is_track_2)
+            page_url_1 = get_bc_page_url(release1['url'], release1['is_track'])
+            page_url_2 = get_bc_page_url(release2['url'], release2['is_track'])
+            widget_string_1 = get_widget_string(release1['release_id'], release1['url'], release1['is_track'])
+            widget_string_2 = get_widget_string(release2['release_id'], release2['url'], release2['is_track'])
             doc += '<p>'
             doc += '<table>'
-            doc += f'<b><tr><th>{date_1} / {page_name_1}</th> <th>{date_2} / {page_name_2}</th></tr></b>'
-            doc += f'<tr><td align="center"><i><a href="{release_url_1}">{page_url_1}</a></i></td> <td align="center"><i><a href="{release_url_2}">{page_url_2}</a></i></td></tr>'
+            doc += f'<b><tr><th>{release1["date"]} / {release1["page_name"]}</th> <th>{release2["date"]} / {release2["page_name"]}</th></tr></b>'
+            doc += f'<tr><td align="center"><i><a href="{release1["url"]}">{page_url_1}</a></i></td> <td align="center"><i><a href="{release2["url"]}">{page_url_2}</a></i></td></tr>'
             doc += f'<tr><td>{widget_string_1}</td><td>{widget_string_2}</td></tr>'
             doc += '</table>'
             doc += '</p>'
@@ -357,17 +332,12 @@ def generate_html(releases, output_dir_name, results_pp):
     print('HTML generated!')
 
 
-
+# ------------------------------------------------------------------------ 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape Gmail for Bandcamp release notifications and generate an HTML file of Bandcamp player widgets.")
-    
-    max_results = 20
-    after_date = '2022/03/01' # YYYY/MM/DD
-    before_date = '2022/06/26' # YYYY/MM/DD
-    results_pp = 100
 
-    parser.add_argument("-e", "--earliest",     help="Earliest date",               default="",             type=str)
-    parser.add_argument("-l", "--latest",       help="Latest date",                 default="today",        type=str)
+    parser.add_argument("-e", "--earliest",     help="Earliest date, YYYY/MM/DD",   default="",             type=str)
+    parser.add_argument("-l", "--latest",       help="Latest date, YYYY/MM/DD",     default="today",        type=str)
     parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=2000,           type=int)
     parser.add_argument("-r", "--results_pp",   help="Results per output page",     default=50,             type=int)
 
@@ -401,6 +371,26 @@ if __name__ == "__main__":
     # Do the thing
     search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{before_date} after:{after_date}"
     message_ids = search_messages(service, search_query, max_results=max_results)
-    raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw', max_results, before_date, after_date)
-    releases = parse_messages(raw_emails, max_results, before_date, after_date)
+    
+    # Get messages    
+    email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
+    if k_no_download:
+        with open(f"data/{email_data_file}", "rb") as a_file:
+            raw_emails = pickle.load(a_file)
+    else:
+        raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
+        with open(f"data/{email_data_file}", "wb+") as a_file:
+            pickle.dump(raw_emails, a_file)
+    
+    # Compile list of releases
+    release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
+    if k_no_download:
+        print ('Opening saved release list...')
+        with open(f"data/{release_info_file}", "rb") as a_file:
+            releases = pickle.load(a_file)
+    else:
+        releases = compile_release_list(raw_emails)
+        with open(f"data/{release_info_file}", "wb+") as a_file:
+            pickle.dump(releases, a_file)
+    
     generate_html(releases, output_dir_name, results_pp)
