@@ -103,6 +103,7 @@ def get_messages(service, ids, format):
 # ------------------------------------------------------------------------ 
 # SCRAPING & PARSING, COMPILING LIST OF RELEASES, GENERATING HTML
 # ------------------------------------------------------------------------ 
+# Scrape Bandcamp URL, date and image URL from one email
 def scrape_info_from_email(email_text):
     date = None
     img_url = None
@@ -163,7 +164,8 @@ def scrape_info_from_email(email_text):
 
 
 # ------------------------------------------------------------------------ 
-def scrape_bandcamp_page(release):
+# Scrape metadata from the Bandcamp page of one release
+def scrape_info_from_bc_page(release):
     release_url = release['url']
 
     html_text = requests.get(release_url).text
@@ -218,6 +220,7 @@ def scrape_bandcamp_page(release):
 
 
 # ------------------------------------------------------------------------ 
+# Collect all releases into a list
 def compile_release_list(raw_emails):
 
     print ('Parsing messages...')
@@ -243,7 +246,7 @@ def compile_release_list(raw_emails):
 
     # Scrape the rest of the info from bandcamp page
     for release in releases:
-        release = scrape_bandcamp_page (release)
+        release = scrape_info_from_bc_page (release)
 
     return releases
 
