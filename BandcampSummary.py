@@ -15,8 +15,8 @@ from pathlib import Path
 
 ## Debug settings ##
 k_no_download = False
-k_gmail_credentials_file = 'credentials.json'
-
+k_gmail_credentials_file = "credentials.json"
+k_data_dir = "data"
 
 
 # ------------------------------------------------------------------------ 
@@ -363,7 +363,7 @@ if __name__ == "__main__":
 
     # Create output directory
     output_dir_name = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
-    Path("data").mkdir(exist_ok=True)
+    Path(k_data_dir).mkdir(exist_ok=True)
     Path(output_dir_name).mkdir(exist_ok=True)
 
     # get the Gmail API service
@@ -376,22 +376,22 @@ if __name__ == "__main__":
     # Get messages    
     email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
     if k_no_download:
-        with open(f"data/{email_data_file}", "rb") as a_file:
+        with open(f"{k_data_dir}/{email_data_file}", "rb") as a_file:
             raw_emails = pickle.load(a_file)
     else:
         raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
-        with open(f"data/{email_data_file}", "wb+") as a_file:
+        with open(f"{k_data_dir}/{email_data_file}", "wb+") as a_file:
             pickle.dump(raw_emails, a_file)
     
     # Compile list of releases
     release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
     if k_no_download:
         print ('Opening saved release list...')
-        with open(f"data/{release_info_file}", "rb") as a_file:
+        with open(f"{k_data_dir}/{release_info_file}", "rb") as a_file:
             releases = pickle.load(a_file)
     else:
         releases = compile_release_list(raw_emails)
-        with open(f"data/{release_info_file}", "wb+") as a_file:
+        with open(f"{k_data_dir}/{release_info_file}", "wb+") as a_file:
             pickle.dump(releases, a_file)
     
     generate_html(releases, output_dir_name, results_pp)
