@@ -1,4 +1,4 @@
-*** INSTRUCTIONS ***
+# INSTRUCTIONS
 
 Due to not yet being officially verified by Google, this script requires a bit of setup in order to use, but it's pretty straightforward and most of this only needs to be done once.
 
@@ -10,7 +10,7 @@ You'll need to:
 Just follow all the steps below. It is assumed that you already have Python and Pip installed on your machine.
 
 
-*** Set up virtual environment and install dependencies ***
+## Set up virtual environment and install dependencies
 
 1. Create a virtual env and activate it. Navigate to the script directory and type the following into a Terminal window:
 
@@ -23,41 +23,41 @@ Just follow all the steps below. It is assumed that you already have Python and 
     venv/bin/pip install -r requirements.txt
 
 
-*** Set up GMail authentication ***
+## Set up GMail authentication
 
 Because this script hasn't been officially verified by Google for public use, there are some extra steps you'll need to take in order to give it access to your Gmail – essentially you'll be using the Gmail API as a developer/tester rather than an end-user so you have to create access credentials on the Google Cloud Console.
 
 Here is a walkthrough:
 
-# Log in to GCP account
+### Log in to GCP account
 1. Go to https://console.cloud.google.com/
 2. Sign in with the Google/Gmail account that receives your Bandcamp release notification emails
 3. Click "Next" / "Not Now" / etc through any first-time setup screens if shown
 
-# Create GCP project
+### Create GCP project
 4. At the top of the page, in between the Google Cloud logo and the search bar, click the "Select a project" dropdown menu.
 5. At the top right of the dialog that opens up, click "New Project".
 6. Name the project BandcampReleaseSummary and leave the location as "No organisation", then click Create and wait for the project to be created.
 
-# Add GMail API to GCP project
+### Add GMail API to GCP project
 7. Click the hamburger menu icon at the top left and click "APIs and Services". Select the BandcampReleaseSummary project.
 8. Click Library at the left, then under "Welcome to the API Library", search for "GMail API".
 9. Click through to the GMail API page, then click Enable.
 
-# Configure OAuth consent screen
+### Configure OAuth consent screen
 10. Now click the hamburger menu at the top left again, click "APIs and Services", and click OAuth Consent Screen.
 11. Set the User Type to "External" and click Create.
 12. In the OAuth consent screen setup page, name the app Bandcamp Summary, enter your own Gmail address in the User Support Email and Developer Contact Email fields, leave the rest blank, and click "Save and Continue".
 12. Now, on the Scopes page, click Add or Remove Scopes. An "Update selected scopes" dialog will pop up with a list of scopes. Click through to the 2nd or 3rd page until you see "Gmail API – .../auth/gmail.readonly - View your email messages and settings". Select this and click the "Update" button at the bottom. This will close the popup and add that scope to your Restricted Scopes. Click Save and Continue.
 13. On the Test Users page, just click Save and Continue.
 
-# Create credentials
+### Create credentials
 14. Click Credentials in the left menu. Click "+ Create Credentials" and click "OAuth client ID".
 15. Under Application Type select "Desktop App" and leave the name as Desktop client 1. Click "Create".
 16. In the "OAuth Client Created" popup that shows, click "Download JSON" and save the credentials file in the same directory as the BandcampReleaseSummary script, with the filename "credentials.json" (you can use any name but you'll have to edit "k_gmail_credentials_file" in the script accordingly).
 
 
-*** Run the BandcampReleaseSummary script ***
+## Run the BandcampReleaseSummary script ##
 
 Now you're ready to run the Python script! Ensure the virtualenv is activated first: 
     
