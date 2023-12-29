@@ -1,5 +1,9 @@
 # INSTRUCTIONS
 
+BandcampReleaseSummary.py is a Python script which scrapes the Bandcamp release notifications in your GMail account in order to create a summary of new releases for easy browsing.
+
+The output is an HTML file containing preview player widgets, one for each release.
+
 Due to not yet being officially verified by Google, this script requires a bit of setup in order to use, but it's pretty straightforward and most of this only needs to be done once.
 
 You'll need to:
