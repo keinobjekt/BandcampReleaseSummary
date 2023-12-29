@@ -65,7 +65,7 @@ Now you're ready to run the Python script! Ensure the virtualenv is activated fi
 
 Then type the following into a Terminal window, replacing "--earlieset" and "--latest" with your desired date range (in the format YYYY/MM/DD). The "--latest" argument defaults to today's date.
 
-    python3 BandcampReleaseSummary --earliest --latest
+    python3 BandcampReleaseSummary.py --earliest --latest
 
 The first time you do, a browser window will pop up and you'll be prompted to enter your Google account credentials. Enter these and you're all set – for now.
 
