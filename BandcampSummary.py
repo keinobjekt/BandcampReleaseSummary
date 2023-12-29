@@ -19,18 +19,63 @@ use_cached_data = False
 
 # ------------------------------------------------------------------------ UTIL 
 
-def parse_release_url(message_text):
+def extract_info_from_email(email_text):
+    date = None
+    img_url = None
+    release_url = None
+    is_track = None
+
+    s = email_text
+    try:
+        s = s.decode()
+    except:
+        s = str(s)
+    
+    # release url
     release_url = None
     search_string = 'a href="https://'
-    start_idx = message_text.find(search_string)
+    start_idx = s.find(search_string)
     if start_idx >= 0:
-        url_start_idx = message_text.find(search_string) + 8
-        url_end_idx = message_text.find('"', url_start_idx)
-        url_qmark_idx = message_text.find('?', url_start_idx)
+        url_start_idx = s.find(search_string) + 8
+        url_end_idx = s.find('"', url_start_idx)
+        url_qmark_idx = s.find('?', url_start_idx)
         if url_end_idx > url_start_idx:
             end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
-            release_url = message_text[url_start_idx:end_idx]
-    return release_url
+            release_url = s[url_start_idx:end_idx]
+
+    #is_track
+    is_track = "bandcamp.com/track" in release_url
+
+    # image url
+    img_idx_end = s.find('jpg') + 3
+    if img_idx_end == -1:
+        print (f'img_idx_end not found for {release_url}')
+        return None, None, None, None
+    img_idx_start = s[0:img_idx_end].rfind('http')
+    if img_idx_start == -1:
+        print (f'img_idx_start not found for {release_url}')
+        return None, None, None, None
+    img_url = s[img_idx_start:img_idx_end]
+
+    # date
+    date_idx = s.find('X-Google-Smtp-Source')
+    if date_idx == -1:
+        print (f'date_idx not found for {release_url}')
+        return None, None, None, None
+    date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
+    if date_idx_start == -1:
+        print (f'date_idx_start not found for {release_url}')
+        return None, None, None, None
+    date_len = s[date_idx_start:date_idx_start+200].find('\r')
+    if date_len == -1:
+        print (f'date_len not found for {release_url}')
+        return None, None, None, None
+
+    date_idx_end = date_idx_start + date_len
+    date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
+    date = date[0:16]
+
+    return date, img_url, release_url, is_track
 
 
 def construct_release(is_track=None, release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
@@ -137,44 +182,10 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
 
         # Parse emails for URL, image URL and date
         for _, email in raw_emails.items():
-            s = email
-            try:
-                s = s.decode()
-            except:
-                s = str(s)
-            release_url = parse_release_url(s)
-            is_track = "bandcamp.com/track" in release_url
-
-            # image url
-            img_idx_end = s.find('jpg') + 3
-            if img_idx_end == -1:
-                print (f'img_idx_end not found for {release_url}')
-                continue
-            img_idx_start = s[0:img_idx_end].rfind('http')
-            if img_idx_start == -1:
-                print (f'img_idx_start not found for {release_url}')
-                continue
-            img_url = s[img_idx_start:img_idx_end]
-
-            # date
-            date_idx = s.find('X-Google-Smtp-Source')
-            if date_idx == -1:
-                print (f'date_idx not found for {release_url}')
-                continue
-            date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
-            if date_idx_start == -1:
-                print (f'date_idx_start not found for {release_url}')
-                continue
-            date_len = s[date_idx_start:date_idx_start+200].find('\r')
-            if date_len == -1:
-                print (f'date_len not found for {release_url}')
-                continue
-
-            date_idx_end = date_idx_start + date_len
-            date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
-            date = date[0:16]
-
-            releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url, is_track=is_track))
+            date, img_url, release_url, is_track = extract_info_from_email(email)
+            
+            if not all(x==None for x in [date, img_url, release_url, is_track]):                
+                releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url, is_track=is_track))
 
         # Sift releases with identical urls
         print ('Discarding releases with identical URLS...')
