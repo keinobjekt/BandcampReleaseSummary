@@ -15,6 +15,7 @@ from pathlib import Path
 
 ## Debug settings ##
 k_no_download = False
+k_gmail_credentials_file = 'credentials.json'
 
 
 
@@ -63,7 +64,7 @@ def gmail_authenticate():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file(k_gmail_credentials_file, SCOPES)
             creds = flow.run_local_server(port=0)
         # save the credentials for the next run
         with open("token.pickle", "wb") as token:
