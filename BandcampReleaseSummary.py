@@ -1,6 +1,5 @@
 import os
 import pickle
-# Gmail API utils
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -21,8 +20,6 @@ k_data_dir = "data"
 
 # ------------------------------------------------------------------------ 
 # UTIL
-# ------------------------------------------------------------------------ 
-
 # ------------------------------------------------------------------------ 
 def construct_release(is_track=None, release_url=None, date=None, img_url=None, artist_name=None, release_title=None, page_name=None, release_id=None):
     release = {}
@@ -47,8 +44,6 @@ def get_widget_string(release_id, release_url, is_track):
 
 # ------------------------------------------------------------------------ 
 # GMAIL
-# ------------------------------------------------------------------------ 
-    
 # ------------------------------------------------------------------------ 
 def gmail_authenticate():
     SCOPES = ['https://mail.google.com/'] # Request all access (permission to read/send/receive emails, manage the inbox, and more)
@@ -107,8 +102,6 @@ def get_messages(service, ids, format):
 
 # ------------------------------------------------------------------------ 
 # SCRAPING & PARSING, COMPILING LIST OF RELEASES, GENERATING HTML
-# ------------------------------------------------------------------------ 
-
 # ------------------------------------------------------------------------ 
 def scrape_info_from_email(email_text):
     date = None
@@ -369,7 +362,7 @@ if __name__ == "__main__":
     # get the Gmail API service
     service = gmail_authenticate()
 
-    # Do the thing
+    # Search inbox
     search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{before_date} after:{after_date}"
     message_ids = search_messages(service, search_query, max_results=max_results)
     
