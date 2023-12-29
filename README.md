@@ -59,7 +59,11 @@ Here is a walkthrough:
 
 *** Run the BandcampReleaseSummary script ***
 
-Now you're ready to run the Python script! Type the following into a Terminal window, replacing "--earlieset" and "--latest" with your desired date range (in the format YYYY/MM/DD). The "--latest" argument defaults to today's date.
+Now you're ready to run the Python script! Ensure the virtualenv is activated first: 
+    
+    source venv/bin/activate
+
+Then type the following into a Terminal window, replacing "--earlieset" and "--latest" with your desired date range (in the format YYYY/MM/DD). The "--latest" argument defaults to today's date.
 
     python3 BandcampReleaseSummary --earliest --latest
 
