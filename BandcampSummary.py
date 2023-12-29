@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 ## Debug settings ##
-use_cached_data = False
+k_no_download = True
 
 
 # ------------------------------------------------------------------------ UTIL 
@@ -141,7 +141,12 @@ def get_messages(service, ids, format, max_results, before_date, after_date):
 
     email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
     
-    if not use_cached_data:
+
+    if k_no_download:
+        with open(f"data/{email_data_file}", "rb") as a_file:
+            raw_emails = pickle.load(a_file)
+
+    else:
 
         idx = 0
         raw_emails = {}
@@ -161,9 +166,6 @@ def get_messages(service, ids, format, max_results, before_date, after_date):
 
         with open(f"data/{email_data_file}", "wb+") as a_file:
             pickle.dump(raw_emails, a_file)
-
-    with open(f"data/{email_data_file}", "rb") as a_file:
-        raw_emails = pickle.load(a_file)
     
     return raw_emails
 
@@ -176,8 +178,11 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
     print ('Parsing messages...')
     release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
     
-    if not use_cached_data:
+    if k_no_download:
+        with open(f"data/{release_info_file}", "rb") as a_file:
+            releases = pickle.load(a_file)
 
+    else:
         releases_unsifted = []
 
         # Parse emails for URL, image URL and date
@@ -260,9 +265,6 @@ def parse_messages(raw_emails, max_results, before_date, after_date):
         
         with open(f"data/{release_info_file}", "wb+") as a_file:
             pickle.dump(releases, a_file)
-
-    with open(f"data/{release_info_file}", "rb") as a_file:
-        releases = pickle.load(a_file)
 
     return releases
 
