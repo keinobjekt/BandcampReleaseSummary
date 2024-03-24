@@ -172,7 +172,7 @@ def scrape_info_from_bc_page(release):
         html_text = requests.get(release_url).text
     except Exception as e:
         html_text = ""
-        print(f'Error getting fetching release data at {release_url}: {e}')
+        print(f'Error fetching release data at {release_url}: {e}')
 
     soup = BeautifulSoup(html_text, 'html.parser')
 
