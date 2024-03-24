@@ -168,7 +168,12 @@ def scrape_info_from_email(email_text):
 def scrape_info_from_bc_page(release):
     release_url = release['url']
 
-    html_text = requests.get(release_url).text
+    try:
+        html_text = requests.get(release_url).text
+    except Exception as e:
+        html_text = ""
+        print(f'Error fetching release data at {release_url}: {e}')
+
     soup = BeautifulSoup(html_text, 'html.parser')
 
     # release title
