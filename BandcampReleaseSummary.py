@@ -80,20 +80,27 @@ def search_messages(service, query, max_results=100):
     return messages
 
 # ------------------------------------------------------------------------ 
-def get_messages(service, ids, format):
+def get_messages(service, ids, format, batch_size):
     idx = 0
     raw_emails = {}
 
     while idx < len(ids):
-        print(f'Downloading messages {idx} to {min(idx+100, len(ids))}')
+        print(f'Downloading messages {idx} to {min(idx+batch_size, len(ids))}')
         batch = service.new_batch_http_request()
-        for id in ids[idx:idx+100]:
+        for id in ids[idx:idx+batch_size]:
             batch.add(service.users().messages().get(userId = 'me', id = id, format=format))
         batch.execute()
         response_keys = [key for key in batch._responses]
 
         for key in response_keys:
-            raw_email = json.loads(batch._responses[key][1])['raw']
+            email_data = json.loads(batch._responses[key][1])
+            if 'error' in email_data:
+                err_msg = email_data['error']['message']
+                if email_data['error']['code'] == 429:
+                    raise Exception(f"{err_msg} Try reducing batch size using argument --batch.")
+                else:
+                    raise Exception(err_msg)
+            raw_email = email_data['raw']
             raw_emails[str(idx)] = base64.urlsafe_b64decode(raw_email + '=' * (4 - len(raw_email) % 4))
             idx += 1
 
@@ -342,6 +349,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--latest",       help="Latest date, YYYY/MM/DD",     default="today",        type=str)
     parser.add_argument("-m", "--max_results",  help="Maximum results to fetch",    default=2000,           type=int)
     parser.add_argument("-r", "--results_pp",   help="Results per output page",     default=50,             type=int)
+    parser.add_argument("-b", "--batch-size",   help="Gmail API batch size",        default=20,             type=int)
 
     args = parser.parse_args()
 
@@ -349,6 +357,7 @@ if __name__ == "__main__":
     after_date  = args.earliest
     before_date = args.latest if args.latest != "today" else f'{datetime.date.today().year}/{datetime.date.today().month:02d}/{datetime.date.today().day:02d}'
     results_pp  = args.results_pp
+    batch_size  = args.batch_size
 
     # Validate args
     def validate(date_text):
@@ -380,7 +389,7 @@ if __name__ == "__main__":
         with open(f"{k_data_dir}/{email_data_file}", "rb") as a_file:
             raw_emails = pickle.load(a_file)
     else:
-        raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw')
+        raw_emails = get_messages(service, [msg['id'] for msg in message_ids], 'raw', batch_size)
         with open(f"{k_data_dir}/{email_data_file}", "wb+") as a_file:
             pickle.dump(raw_emails, a_file)
     
