@@ -149,19 +149,33 @@ def scrape_info_from_email(email_text):
         return None, None, None, None
     img_url = s[img_idx_start:img_idx_end]
 
-    # date
+    # Date
     date_idx = s.find('X-Google-Smtp-Source')
     if date_idx == -1:
         print (f'date_idx not found for {release_url}')
         return None, None, None, None
-    date_idx_start = s[0:date_idx-2].rfind('\n') + 2        
+    
+    # Expected format for s[0:date_idx-2]
+    # case 1: "Delivered-To: keinobjekt@gmail.com\r\nReceived: by 2002:a05:7300:2552:b0:110:3fe2:a0ef with SMTP id p18csp1012723dyi;\r\n        Thu, 30 May 2024 01:47:47 -0700 (PDT)"
+    #   OR
+    # case 2: "b'Delivered-To: keinobjekt@gmail.com\\r\\nReceived: by 2002:a05:7300:2552:b0:110:3fe2:a0ef with SMTP id p18csp1064864dyi;\\r\\n        Thu, 30 May 2024 04:15:32 -0700 (PDT)\\r"
+    date_idx_start = s[0:date_idx-2].rfind('\n') # try case 1 first
     if date_idx_start == -1:
-        print (f'date_idx_start not found for {release_url}')
-        return None, None, None, None
-    date_len = s[date_idx_start:date_idx_start+200].find('\r')
+        date_idx_start = s[0:date_idx-2].rfind('\\n') # try case 2
+        if date_idx_start ==-1:
+            print (f'date_idx_start not found for {release_url}')
+            return None, None, None, None
+    date_idx_start += 2
+    
+    # Expected format for s[date_idx_start:date_idx_start+200]:
+    # case 1: "       Thu, 30 May 2024 11:43:44 -0700 (PDT)\r\nX-Google-Smtp-Source: AGHT+IHRXYFV86BGPusTN6HQR23/ZruHYVVKf68vtBTpgWGtmTtHLURVYkoj4LmZlbCCgXhF5Hpf\r\nX-Received: by 2002:a05:620a:1aa3:b0:794:f353:4bfd wit"
+    # case 2: "       Thu, 30 May 2024 15:14:16 -0700 (PDT)\\r\\nX-Google-Smtp-Source: AGHT+IGYSvmcyxdro1Quw1bBrSHLfS9jj55klik3GxISEk/3UOyHA21h2zzRLk0oCmJjFSfNIDde\\r\\nX-Received: by 2002:ac8:7c47:0:b0:43e:26ab:4fbc w"
+    date_len = s[date_idx_start:date_idx_start+200].find('\r') # try case 1
     if date_len == -1:
-        print (f'date_len not found for {release_url}')
-        return None, None, None, None
+        date_len = s[date_idx_start:date_idx_start+200].find('\\r') # try case 2
+        if date_len == -1:
+            print (f'date_len not found for {release_url}')
+            return None, None, None, None
 
     date_idx_end = date_idx_start + date_len
     date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
