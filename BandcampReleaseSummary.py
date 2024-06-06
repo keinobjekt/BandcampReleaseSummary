@@ -189,20 +189,37 @@ def scrape_info_from_email(email_text):
 def scrape_info_from_bc_page(release):
     release_url = release['url']
 
-    try:
-        html_text = requests.get(release_url).text
-    except Exception as e:
-        html_text = ""
-        print(f'Error fetching release data at {release_url}: {e}')
+    k_num_attempts = 5
+    for _ in range(k_num_attempts):
+        try:
+            html_text = requests.get(release_url).text
+        except Exception as e:
+            html_text = ""
+            print(f'Error: Exception while fetching Bandcamp page at {release_url}: {e}')
+            return release
+        if html_text != "":
+            break
+        else:
+            import time
+            time.sleep(5)
+
+    if html_text == "":
+        print(f'Error: Could not load bandcamp page at {release_url}: {e}')
+        return release
 
     soup = BeautifulSoup(html_text, 'html.parser')
+
+    # check for bandcamp 404 page
+    if "Sorry, that something isn’t here" in html_text:
+        print(f'Error: Bandcamp 404 page found at {release_url}')
+        return release
 
     # release title
     release['release_title'] = soup.find('h2', class_="trackTitle")
     if release['release_title'] is not None:
         release['release_title'] = soup.find('h2', class_="trackTitle").text.strip()        
     else:
-        print(f'Release title not found at {release_url}')
+        print(f'Error: Release title not found while scraping {release_url}')
         return release
 
     # artist name
