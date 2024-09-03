@@ -4,7 +4,6 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import base64
-import requests
 from bs4 import BeautifulSoup
 import json
 import argparse
@@ -192,7 +191,9 @@ def scrape_info_from_bc_page(release):
     k_num_attempts = 5
     for _ in range(k_num_attempts):
         try:
-            html_text = requests.get(release_url).text
+            from urllib.request import Request, urlopen
+            req = Request(release_url, headers={'User-Agent': 'XYZ/3.0'})
+            html_text = urlopen(req, timeout=10).read().decode()
         except Exception as e:
             html_text = ""
             print(f'Error: Exception while fetching Bandcamp page at {release_url}: {e}')
