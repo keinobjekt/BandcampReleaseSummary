@@ -5,6 +5,8 @@ from pathlib import Path
 
 from gmail import gmail_authenticate, search_messages, get_messages, scrape_info_from_email
 from bandcamp import scrape_info_from_bc_page
+from util import construct_release
+from generate import generate_html
 
 ## Settings ##
 k_no_download = False
