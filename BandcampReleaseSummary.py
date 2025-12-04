@@ -11,10 +11,11 @@ import datetime
 from pathlib import Path
 
 
-## Debug settings ##
+## Settings ##
 k_no_download = False
 k_gmail_credentials_file = "credentials.json"
 k_data_dir = "data"
+k_output_path = "output"
 
 
 # ------------------------------------------------------------------------ 
@@ -407,7 +408,7 @@ if __name__ == "__main__":
     validate(before_date)
 
     # Create output directory
-    output_dir_name = f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
+    output_dir_name = f'{k_output_path}/bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
     Path(k_data_dir).mkdir(exist_ok=True)
     Path(output_dir_name).mkdir(exist_ok=True)
 
