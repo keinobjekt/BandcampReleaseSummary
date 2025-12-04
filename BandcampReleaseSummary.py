@@ -134,6 +134,9 @@ def scrape_info_from_email(email_text):
             end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
             release_url = s[url_start_idx:end_idx]
 
+    if release_url == None:
+        return None, None, None, None
+
     # track (vs release) flag
     is_track = "bandcamp.com/track" in release_url
 
