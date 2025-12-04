@@ -2,13 +2,52 @@ import pickle
 import os
 import base64
 import json
+import quopri
+from furl import furl
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from bs4 import BeautifulSoup
 
 # ------------------------------------------------------------------------ 
 
 k_gmail_credentials_file = "credentials.json"
+
+
+# ------------------------------------------------------------------------ 
+def get_html_from_message(msg):
+    """
+    Extracts and decodes the HTML part from a Gmail 'full' message.
+    Always returns a proper Unicode string (or None).
+    """
+    def walk_parts(part):
+        mime_type = part.get("mimeType", "")
+        body = part.get("body", {})
+        data = body.get("data")
+
+        # If this part is HTML, decode it
+        if mime_type == "text/html" and data:
+            # Base64-url decode
+            decoded_bytes = base64.urlsafe_b64decode(data)
+
+            # Some Gmail messages use quoted-printable encoding inside HTML
+            try:
+                decoded_bytes = quopri.decodestring(decoded_bytes)
+            except:
+                pass
+
+            # Convert to Unicode
+            return decoded_bytes.decode("utf-8", errors="replace")
+
+        # Multipart → recursive search
+        for p in part.get("parts", []):
+            html = walk_parts(p)
+            if html:
+                return html
+
+        return None
+
+    return walk_parts(msg["payload"])
 
 # ------------------------------------------------------------------------ 
 def gmail_authenticate():
@@ -48,7 +87,7 @@ def search_messages(service, query, max_results=100):
 # ------------------------------------------------------------------------ 
 def get_messages(service, ids, format, batch_size):
     idx = 0
-    raw_emails = {}
+    emails = {}
 
     while idx < len(ids):
         print(f'Downloading messages {idx} to {min(idx+batch_size, len(ids))}')
@@ -66,11 +105,11 @@ def get_messages(service, ids, format, batch_size):
                     raise Exception(f"{err_msg} Try reducing batch size using argument --batch.")
                 else:
                     raise Exception(err_msg)
-            raw_email = email_data['raw']
-            raw_emails[str(idx)] = base64.urlsafe_b64decode(raw_email + '=' * (4 - len(raw_email) % 4))
+            email = get_html_from_message(email_data)
+            emails[str(idx)] = email
             idx += 1
 
-    return raw_emails
+    return emails
 
 
 
@@ -89,16 +128,18 @@ def scrape_info_from_email(email_text):
         s = str(s)
     
     # release url
+    soup = BeautifulSoup(email_text, "html.parser") if email_text else None
     release_url = None
-    search_string = 'a href="https://'
-    start_idx = s.find(search_string)
-    if start_idx >= 0:
-        url_start_idx = s.find(search_string) + 8
-        url_end_idx = s.find('"', url_start_idx)
-        url_qmark_idx = s.find('?', url_start_idx)
-        if url_end_idx > url_start_idx:
-            end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
-            release_url = s[url_start_idx:end_idx]
+
+    def _find_bandcamp_release_url() -> str | None:
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            # Basic heuristic for Bandcamp release pages
+            if "bandcamp.com" in href and ("/album/" in href or "/track/" in href):
+                return furl(href).remove(args=True, fragment=True).url
+        return None
+    
+    release_url = _find_bandcamp_release_url()
 
     if release_url == None:
         return None, None, None, None
@@ -107,46 +148,14 @@ def scrape_info_from_email(email_text):
     is_track = "bandcamp.com/track" in release_url
 
     # image url
-    img_idx_end = s.find('jpg') + 3
-    if img_idx_end == -1:
-        print (f'img_idx_end not found for {release_url}')
-        return None, None, None, None
-    img_idx_start = s[0:img_idx_end].rfind('http')
-    if img_idx_start == -1:
-        print (f'img_idx_start not found for {release_url}')
-        return None, None, None, None
-    img_url = s[img_idx_start:img_idx_end]
-
-    # Date
-    date_idx = s.find('X-Google-Smtp-Source')
-    if date_idx == -1:
-        print (f'date_idx not found for {release_url}')
-        return None, None, None, None
-    
-    # Expected format for s[0:date_idx-2]
-    # case 1: "Delivered-To: keinobjekt@gmail.com\r\nReceived: by 2002:a05:7300:2552:b0:110:3fe2:a0ef with SMTP id p18csp1012723dyi;\r\n        Thu, 30 May 2024 01:47:47 -0700 (PDT)"
-    #   OR
-    # case 2: "b'Delivered-To: keinobjekt@gmail.com\\r\\nReceived: by 2002:a05:7300:2552:b0:110:3fe2:a0ef with SMTP id p18csp1064864dyi;\\r\\n        Thu, 30 May 2024 04:15:32 -0700 (PDT)\\r"
-    date_idx_start = s[0:date_idx-2].rfind('\n') # try case 1 first
-    if date_idx_start == -1:
-        date_idx_start = s[0:date_idx-2].rfind('\\n') # try case 2
-        if date_idx_start ==-1:
-            print (f'date_idx_start not found for {release_url}')
-            return None, None, None, None
-    date_idx_start += 2
-    
-    # Expected format for s[date_idx_start:date_idx_start+200]:
-    # case 1: "       Thu, 30 May 2024 11:43:44 -0700 (PDT)\r\nX-Google-Smtp-Source: AGHT+IHRXYFV86BGPusTN6HQR23/ZruHYVVKf68vtBTpgWGtmTtHLURVYkoj4LmZlbCCgXhF5Hpf\r\nX-Received: by 2002:a05:620a:1aa3:b0:794:f353:4bfd wit"
-    # case 2: "       Thu, 30 May 2024 15:14:16 -0700 (PDT)\\r\\nX-Google-Smtp-Source: AGHT+IGYSvmcyxdro1Quw1bBrSHLfS9jj55klik3GxISEk/3UOyHA21h2zzRLk0oCmJjFSfNIDde\\r\\nX-Received: by 2002:ac8:7c47:0:b0:43e:26ab:4fbc w"
-    date_len = s[date_idx_start:date_idx_start+200].find('\r') # try case 1
-    if date_len == -1:
-        date_len = s[date_idx_start:date_idx_start+200].find('\\r') # try case 2
-        if date_len == -1:
-            print (f'date_len not found for {release_url}')
-            return None, None, None, None
-
-    date_idx_end = date_idx_start + date_len
-    date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
-    date = date[0:16]
+    # img_idx_end = s.find('jpg') + 3
+    # if img_idx_end == -1:
+    #     print (f'img_idx_end not found for {release_url}')
+    #     return None, None, None, None
+    # img_idx_start = s[0:img_idx_end].rfind('http')
+    # if img_idx_start == -1:
+    #     print (f'img_idx_start not found for {release_url}')
+    #     return None, None, None, None
+    # img_url = s[img_idx_start:img_idx_end]
 
     return date, img_url, release_url, is_track
