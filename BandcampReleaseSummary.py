@@ -4,7 +4,7 @@ import argparse
 import datetime
 from pathlib import Path
 
-from gmail import gmail_authenticate, search_messages, get_messages
+from gmail import gmail_authenticate, search_messages, get_messages, scrape_info_from_email
 
 
 ## Settings ##
@@ -41,84 +41,7 @@ def get_widget_string(release_id, release_url, is_track):
 # ------------------------------------------------------------------------ 
 # SCRAPING & PARSING, COMPILING LIST OF RELEASES, GENERATING HTML
 # ------------------------------------------------------------------------ 
-# Scrape Bandcamp URL, date and image URL from one email
-def scrape_info_from_email(email_text):
-    date = None
-    img_url = None
-    release_url = None
-    is_track = None
 
-    s = email_text
-    try:
-        s = s.decode()
-    except:
-        s = str(s)
-    
-    # release url
-    release_url = None
-    search_string = 'a href="https://'
-    start_idx = s.find(search_string)
-    if start_idx >= 0:
-        url_start_idx = s.find(search_string) + 8
-        url_end_idx = s.find('"', url_start_idx)
-        url_qmark_idx = s.find('?', url_start_idx)
-        if url_end_idx > url_start_idx:
-            end_idx = url_qmark_idx if url_qmark_idx > url_start_idx and url_qmark_idx < url_end_idx else url_end_idx
-            release_url = s[url_start_idx:end_idx]
-
-    if release_url == None:
-        return None, None, None, None
-
-    # track (vs release) flag
-    is_track = "bandcamp.com/track" in release_url
-
-    # image url
-    img_idx_end = s.find('jpg') + 3
-    if img_idx_end == -1:
-        print (f'img_idx_end not found for {release_url}')
-        return None, None, None, None
-    img_idx_start = s[0:img_idx_end].rfind('http')
-    if img_idx_start == -1:
-        print (f'img_idx_start not found for {release_url}')
-        return None, None, None, None
-    img_url = s[img_idx_start:img_idx_end]
-
-    # Date
-    date_idx = s.find('X-Google-Smtp-Source')
-    if date_idx == -1:
-        print (f'date_idx not found for {release_url}')
-        return None, None, None, None
-    
-    # Expected format for s[0:date_idx-2]
-    # case 1: "Delivered-To: keinobjekt@gmail.com\r\nReceived: by 2002:a05:7300:2552:b0:110:3fe2:a0ef with SMTP id p18csp1012723dyi;\r\n        Thu, 30 May 2024 01:47:47 -0700 (PDT)"
-    #   OR
-    # case 2: "b'Delivered-To: keinobjekt@gmail.com\\r\\nReceived: by 2002:a05:7300:2552:b0:110:3fe2:a0ef with SMTP id p18csp1064864dyi;\\r\\n        Thu, 30 May 2024 04:15:32 -0700 (PDT)\\r"
-    date_idx_start = s[0:date_idx-2].rfind('\n') # try case 1 first
-    if date_idx_start == -1:
-        date_idx_start = s[0:date_idx-2].rfind('\\n') # try case 2
-        if date_idx_start ==-1:
-            print (f'date_idx_start not found for {release_url}')
-            return None, None, None, None
-    date_idx_start += 2
-    
-    # Expected format for s[date_idx_start:date_idx_start+200]:
-    # case 1: "       Thu, 30 May 2024 11:43:44 -0700 (PDT)\r\nX-Google-Smtp-Source: AGHT+IHRXYFV86BGPusTN6HQR23/ZruHYVVKf68vtBTpgWGtmTtHLURVYkoj4LmZlbCCgXhF5Hpf\r\nX-Received: by 2002:a05:620a:1aa3:b0:794:f353:4bfd wit"
-    # case 2: "       Thu, 30 May 2024 15:14:16 -0700 (PDT)\\r\\nX-Google-Smtp-Source: AGHT+IGYSvmcyxdro1Quw1bBrSHLfS9jj55klik3GxISEk/3UOyHA21h2zzRLk0oCmJjFSfNIDde\\r\\nX-Received: by 2002:ac8:7c47:0:b0:43e:26ab:4fbc w"
-    date_len = s[date_idx_start:date_idx_start+200].find('\r') # try case 1
-    if date_len == -1:
-        date_len = s[date_idx_start:date_idx_start+200].find('\\r') # try case 2
-        if date_len == -1:
-            print (f'date_len not found for {release_url}')
-            return None, None, None, None
-
-    date_idx_end = date_idx_start + date_len
-    date = s[date_idx_start:date_idx_end].strip().encode('utf-8').decode('unicode_escape')
-    date = date[0:16]
-
-    return date, img_url, release_url, is_track
-
-
-# ------------------------------------------------------------------------ 
 # Scrape metadata from the Bandcamp page of one release
 def scrape_info_from_bc_page(release):
     release_url = release['url']
