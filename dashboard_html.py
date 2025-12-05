@@ -7,13 +7,15 @@ dashboard.py remains focused on data normalization and file I/O.
 from __future__ import annotations
 
 import html
+import json
 
 
-def render_dashboard_html(*, title: str, data_json: str) -> str:
+def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | None = None) -> str:
     """
     Build the full dashboard HTML document.
     """
     escaped_title = html.escape(title)
+    proxy_literal = json.dumps(embed_proxy_url)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -179,7 +181,10 @@ def render_dashboard_html(*, title: str, data_json: str) -> str:
     .actions {{
       display: flex;
       gap: 8px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      align-items: center;
+      white-space: nowrap;
     }}
     .button {{
       padding: 8px 12px;
@@ -281,6 +286,9 @@ def render_dashboard_html(*, title: str, data_json: str) -> str:
   </div>
   <script id="release-data" type="application/json">{data_json}</script>
   <script>
+    const EMBED_PROXY_URL = {proxy_literal};
+  </script>
+  <script>
     const releases = JSON.parse(document.getElementById("release-data").textContent);
     const state = {{
       sortKey: "date",
@@ -332,7 +340,8 @@ def render_dashboard_html(*, title: str, data_json: str) -> str:
     async function ensureEmbed(release) {{
       if (release.embed_url) return release.embed_url;
       if (!release.url) return null;
-      try {{
+
+      const tryDirect = async () => {{
         const response = await fetch(release.url, {{ method: "GET" }});
         const text = await response.text();
         const meta = parseEmbedMeta(text);
@@ -341,6 +350,25 @@ def render_dashboard_html(*, title: str, data_json: str) -> str:
         release.embed_url = embedUrl;
         release.is_track = meta.item_type === "track";
         return embedUrl;
+      }};
+
+      try {{
+        if (EMBED_PROXY_URL) {{
+          try {{
+            const response = await fetch(`${{EMBED_PROXY_URL}}?url=${{encodeURIComponent(release.url)}}`);
+            if (!response.ok) throw new Error(`Proxy fetch failed: ${{response.status}}`);
+            const data = await response.json();
+            const embedUrl = data.embed_url || buildEmbedUrl(data.release_id, data.is_track);
+            release.embed_url = embedUrl;
+            if (typeof data.is_track === "boolean") {{
+              release.is_track = data.is_track;
+            }}
+            if (embedUrl) return embedUrl;
+          }} catch (proxyErr) {{
+            console.warn("Proxy embed fetch failed, falling back to direct fetch", proxyErr);
+          }}
+        }}
+        return await tryDirect();
       }} catch (err) {{
         console.warn("Failed to fetch embed info", err);
         return null;
@@ -454,12 +482,6 @@ def render_dashboard_html(*, title: str, data_json: str) -> str:
 
       td.innerHTML = `
         <div class="detail-card">
-          <div class="detail-header">
-            <div>
-              <div class="detail-meta"><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.page_name || "Unknown"}}</a></div>
-              <div class="detail-meta">${{formatDate(release.date)}}</div>
-            </div>
-          </div>
           <div class="embed-wrapper" data-embed-target>
             <div class="detail-meta">Loading player…</div>
           </div>
