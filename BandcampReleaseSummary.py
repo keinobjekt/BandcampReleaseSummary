@@ -7,6 +7,7 @@ from gmail import gmail_authenticate, search_messages, get_messages, scrape_info
 from bandcamp import scrape_info_from_bc_page
 from util import construct_release
 from generate import generate_html
+from dashboard import write_release_dashboard
 
 ## Settings ##
 k_no_download = False
@@ -123,4 +124,11 @@ if __name__ == "__main__":
             pickle.dump(releases, a_file)
     
     # Generate HTML pages
-    generate_html(releases, output_dir_name, results_pp)
+    write_release_dashboard(releases=releases, 
+                            output_path=f"{output_dir_name}/output.html",
+                            title="Bandcamp Release Dashboard",
+                            fetch_missing_ids=True)
+    
+    print(f"Dashboard written to {output_dir_name}/output.html")
+    
+    #generate_html(releases, output_dir_name, results_pp)
