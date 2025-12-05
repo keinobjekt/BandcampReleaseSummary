@@ -6,3 +6,5 @@ argparse
 datetime
 pathlib
 flask
+tkcalendar
+furl
