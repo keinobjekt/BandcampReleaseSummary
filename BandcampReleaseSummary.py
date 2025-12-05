@@ -13,6 +13,7 @@ from dashboard import write_release_dashboard
 k_no_download = False
 k_data_dir = "data"
 k_output_path = "output"
+k_embed_proxy_url = "http://localhost:5050/embed-meta"
 
 
 # ------------------------------------------------------------------------ 
@@ -127,7 +128,8 @@ if __name__ == "__main__":
     write_release_dashboard(releases=releases, 
                             output_path=f"{output_dir_name}/output.html",
                             title="Bandcamp Release Dashboard",
-                            fetch_missing_ids=True)
+                            fetch_missing_ids=False,
+                            embed_proxy_url=k_embed_proxy_url)
     
     print(f"Dashboard written to {output_dir_name}/output.html")
     

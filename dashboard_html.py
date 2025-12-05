@@ -375,13 +375,6 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       }}
     }}
 
-    function getEmbedPromise(release) {{
-      if (!release._embedPromise) {{
-        release._embedPromise = ensureEmbed(release);
-      }}
-      return release._embedPromise;
-    }}
-
     function renderFilters() {{
       const labels = [...new Set(releases.map(r => r.page_name).filter(Boolean))].sort();
       const container = document.getElementById("label-filters");
@@ -468,7 +461,6 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         btn.type = "button";
         btn.addEventListener("click", evt => {{
           evt.stopPropagation();
-          getEmbedPromise(release);
           window.open(targetUrl, "_blank", "noopener");
         }});
       }});
@@ -547,21 +539,26 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           tr.classList.add("expanded");
 
           const embedTarget = detail.querySelector("[data-embed-target]");
-          const alreadyHasIframe = embedTarget.querySelector("iframe");
-          if (!alreadyHasIframe) {{
-            getEmbedPromise(release).then(embedUrl => {{
-              if (!embedUrl) {{
-                embedTarget.innerHTML = `<div class="detail-meta">No embed available. <a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">Open on Bandcamp</a>.</div>`;
-                return;
-              }}
-              const height = release.is_track ? 320 : 480;
-              embedTarget.innerHTML = `<iframe title="Bandcamp player" style="border:0; width:100%; height:${{height}}px;" src="${{embedUrl}}" seamless></iframe>`;
-            }});
-          }}
+          ensureEmbed(release).then(embedUrl => {{
+            if (!embedUrl) {{
+              embedTarget.innerHTML = `<div class="detail-meta">No embed available. <a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">Open on Bandcamp</a>.</div>`;
+              return;
+            }}
+            const height = release.is_track ? 320 : 480;
+            embedTarget.innerHTML = `<iframe title="Bandcamp player" style="border:0; width:100%; height:${{height}}px;" src="${{embedUrl}}" seamless></iframe>`;
+          }});
         }});
 
+        // Hover-based preload with debounce (0.2s)
+        let hoverTimer;
         tr.addEventListener("mouseenter", () => {{
-          getEmbedPromise(release);
+          hoverTimer = setTimeout(() => ensureEmbed(release), 200);
+        }});
+        tr.addEventListener("mouseleave", () => {{
+          if (hoverTimer) {{
+            clearTimeout(hoverTimer);
+            hoverTimer = null;
+          }}
         }});
 
         attachRowActions(tr, release);

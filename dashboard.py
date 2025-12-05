@@ -128,13 +128,14 @@ def build_release_dashboard_html(
     *,
     title: str = "Bandcamp Release Dashboard",
     fetch_missing_ids: bool = False,
+    embed_proxy_url: str | None = None,
 ) -> str:
     """Return a full HTML document for browsing Bandcamp releases."""
     normalized: List[Dict[str, str]] = [
         _normalize_release(entry, fetch_missing_ids) for entry in releases
     ]
     data_json = json.dumps(normalized, ensure_ascii=True)
-    return render_dashboard_html(title=title, data_json=data_json)
+    return render_dashboard_html(title=title, data_json=data_json, embed_proxy_url=embed_proxy_url)
 
 
 def write_release_dashboard(
@@ -143,13 +144,14 @@ def write_release_dashboard(
     *,
     title: str = "Bandcamp Release Dashboard",
     fetch_missing_ids: bool = False,
+    embed_proxy_url: str | None = None,
 ) -> Path:
     """
     Convenience helper that writes the dashboard HTML to disk.
     """
     output_path = Path(output_path)
     html_doc = build_release_dashboard_html(
-        releases, title=title, fetch_missing_ids=fetch_missing_ids
+        releases, title=title, fetch_missing_ids=fetch_missing_ids, embed_proxy_url=embed_proxy_url
     )
     output_path.write_text(html_doc, encoding="utf-8")
     return output_path
