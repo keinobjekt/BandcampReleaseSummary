@@ -21,10 +21,23 @@ def construct_release_list(emails):
     print ('Parsing messages...')
     releases_unsifted = []
     for _, email in emails.items():
-        date, img_url, release_url, is_track = scrape_info_from_email(email)
+        # handle new structure with html + date
+        date_header = None
+        html_text = email
+        if isinstance(email, dict):
+            html_text = email.get("html")
+            date_header = email.get("date")
+
+        date, img_url, release_url, is_track, artist_name, release_title, page_name = scrape_info_from_email(html_text, date_header)
         
-        if not all(x==None for x in [date, img_url, release_url, is_track]):                
-            releases_unsifted.append(construct_release(date=date, img_url=img_url, release_url=release_url, is_track=is_track))
+        if not all(x==None for x in [date, img_url, release_url, is_track, artist_name, release_title, page_name]):                
+            releases_unsifted.append(construct_release(date=date,
+                                                      img_url=img_url,
+                                                      release_url=release_url,
+                                                      is_track=is_track,
+                                                      artist_name=artist_name,
+                                                      release_title=release_title,
+                                                      page_name=page_name))
 
     # Sift releases with identical urls
     print ('Discarding releases with identical URLS...')
@@ -34,14 +47,13 @@ def construct_release_list(emails):
         if release['url'] not in release_urls:
             release_urls.append(release['url'])
             releases.append(construct_release(is_track=release['is_track'],
-                                                date=release['date'], 
-                                                img_url=release['img_url'], 
-                                                release_url=release['url']))
+                                              date=release['date'], 
+                                              img_url=release['img_url'], 
+                                              release_url=release['url'],
+                                              artist_name=release.get('artist'),
+                                              release_title=release.get('title'),
+                                              page_name=release.get('page_name')))
     print (f'Removed duplicated releases - originally {len(releases_unsifted)}, now {len(releases)}')
-
-    # Scrape the rest of the info from bandcamp page
-    for release in releases:
-        release = scrape_info_from_bc_page (release)
 
     return releases
 

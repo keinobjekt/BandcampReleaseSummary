@@ -3,11 +3,13 @@ import os
 import base64
 import json
 import quopri
+from email.utils import parsedate_to_datetime
 from furl import furl
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from bs4 import BeautifulSoup
+import re
 
 # ------------------------------------------------------------------------ 
 
@@ -106,7 +108,22 @@ def get_messages(service, ids, format, batch_size):
                 else:
                     raise Exception(err_msg)
             email = get_html_from_message(email_data)
-            emails[str(idx)] = email
+
+            # Extract Date header if available
+            headers = email_data.get("payload", {}).get("headers", [])
+            date_header = None
+            for h in headers:
+                if h.get("name", "").lower() == "date":
+                    date_header = h.get("value")
+                    break
+            parsed_date = None
+            if date_header:
+                try:
+                    parsed_date = parsedate_to_datetime(date_header).strftime("%Y-%m-%d")
+                except Exception:
+                    parsed_date = date_header
+
+            emails[str(idx)] = {"html": email, "date": parsed_date}
             idx += 1
 
     return emails
@@ -114,12 +131,15 @@ def get_messages(service, ids, format, batch_size):
 
 
 # ------------------------------------------------------------------------ 
-# Scrape Bandcamp URL, date and image URL from one email
-def scrape_info_from_email(email_text):
-    date = None
+# Scrape Bandcamp URL and light metadata from one email
+def scrape_info_from_email(email_text, date_header=None):
+    date = date_header
     img_url = None
     release_url = None
     is_track = None
+    artist_name = None
+    release_title = None
+    page_name = None
 
     s = email_text
     try:
@@ -142,20 +162,48 @@ def scrape_info_from_email(email_text):
     release_url = _find_bandcamp_release_url()
 
     if release_url == None:
-        return None, None, None, None
+        return None, None, None, None, None, None, None
 
     # track (vs release) flag
     is_track = "bandcamp.com/track" in release_url
 
-    # image url
-    # img_idx_end = s.find('jpg') + 3
-    # if img_idx_end == -1:
-    #     print (f'img_idx_end not found for {release_url}')
-    #     return None, None, None, None
-    # img_idx_start = s[0:img_idx_end].rfind('http')
-    # if img_idx_start == -1:
-    #     print (f'img_idx_start not found for {release_url}')
-    #     return None, None, None, None
-    # img_url = s[img_idx_start:img_idx_end]
 
-    return date, img_url, release_url, is_track
+    # attempt to scrape artist/release/page from the email itself
+    # formats:
+    # "page_name just released release_title by artist_name, check it out here"
+    # "artist_name just released release_title, check it out here"
+    if soup:
+        
+        # release title – it's the only italicized text in the email
+        parts = []
+        for span in soup.find_all("span", style=True):
+            if "font-style: italic" in span["style"]:
+                parts.append(span.get_text(" ", strip=True))
+                break # only first italicized part
+        release_title = " ".join(parts)
+    
+        full_text = soup.get_text(" ", strip=True)
+        # Remove the leading greeting which always starts with "Greetings <username>, "
+        if full_text.lower().startswith("greetings "):
+            # drop first sentence up to first comma
+            if "," in full_text:
+                full_text = full_text.split(",", 1)[1].strip()
+        # Strip the trailing call-to-action
+        full_text = re.split(r",\s*check it out here", full_text, flags=re.IGNORECASE)[0].strip()
+
+        # Expecting one of:
+        # 1) "<page_name> just released <release_title>"
+        # 2) "<page_name> just released <release_title> by <artist_name>"
+        # or with "just announced" instead of "just released"
+        release_phrase = r"just\s+(?:released|announced)"
+        if re.search(release_phrase, full_text, flags=re.IGNORECASE):
+            before, after = re.split(release_phrase, full_text, maxsplit=1, flags=re.IGNORECASE)
+            page_name = (page_name or before).strip() if before else page_name
+            after = after.strip()
+            if release_title:
+                m = re.search(re.escape(release_title) + r"\s+by\s+(.+)$", after, flags=re.IGNORECASE)
+                if m:
+                    artist_name = artist_name or m.group(1).strip()
+
+
+    return date, img_url, release_url, is_track, artist_name, release_title, page_name
