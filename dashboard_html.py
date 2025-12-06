@@ -33,6 +33,18 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       --border: #222735;
       --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
       --radius: 10px;
+      --row-bg: #181b22;
+    }}
+    .theme-light {{
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --panel: #f1f3f7;
+      --accent: #1f7aff;
+      --text: #0a0f1a;
+      --muted: #5a6375;
+      --border: #d9e2ef;
+      --shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      --row-bg: #f6f7fb;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -44,6 +56,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       color: var(--text);
       font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
       display: flex;
+    }}
+    body.theme-light {{
+      background: radial-gradient(circle at 20% 20%, rgba(31, 122, 255, 0.08), transparent 25%),
+                  radial-gradient(circle at 80% 0%, rgba(255, 171, 64, 0.1), transparent 25%),
+                  var(--bg);
     }}
     a.link {{
       color: var(--text);
@@ -58,11 +75,26 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     header {{
       padding: 18px 24px;
       border-bottom: 1px solid var(--border);
-      background: rgba(12, 14, 19, 0.9);
+      background: var(--header-bg);
       backdrop-filter: blur(12px);
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: 20;
+    }}
+    .button {{
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.12s ease;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }}
+    .button:hover {{
+      transform: translateY(-1px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.2);
     }}
     h1 {{
       margin: 0;
@@ -119,11 +151,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
     .table-wrapper {{
       margin-top: 12px;
-      background: rgba(16, 18, 24, 0.75);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       box-shadow: var(--shadow);
-      overflow: hidden;
+      overflow: auto;
     }}
     table {{
       width: 100%;
@@ -131,10 +163,13 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       font-size: 14px;
     }}
     thead {{
-      background: rgba(255, 255, 255, 0.04);
+      background: var(--panel);
+      position: sticky;
+      top: 0;
+      z-index: 5;
     }}
     th, td {{
-      padding: 12px 14px;
+      padding: 10px 12px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }}
@@ -145,7 +180,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       font-size: 12px;
       letter-spacing: 0.6px;
       color: var(--muted);
-      position: relative;
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+      z-index: 6;
     }}
     th .sort-indicator {{
       position: absolute;
@@ -155,9 +193,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
     tr.data-row {{
       transition: background 0.15s ease;
+      background: var(--row-bg);
     }}
     tr.data-row:hover {{
-      background: rgba(82, 208, 255, 0.05);
+      background: rgba(82, 208, 255, 0.02);
     }}
     tr.expanded {{
       background: rgba(82, 208, 255, 0.08);
@@ -178,44 +217,17 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       font-weight: 600;
       letter-spacing: 0.3px;
     }}
-    .actions {{
-      display: flex;
-      gap: 8px;
-      flex-wrap: nowrap;
-      justify-content: flex-start;
-      align-items: center;
-      white-space: nowrap;
-    }}
-    .button {{
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--text);
-      cursor: pointer;
-      transition: all 0.12s ease;
-      font-weight: 600;
-      letter-spacing: 0.2px;
-    }}
-    .button.primary {{
-      background: linear-gradient(135deg, #52d0ff, #6ef9d2);
-      color: #0a0d12;
-      border-color: transparent;
-    }}
-    .button:hover {{
-      transform: translateY(-1px);
-      box-shadow: 0 6px 12px rgba(0,0,0,0.2);
-    }}
     .detail-row td {{
       padding: 0;
       border: none;
-      background: rgba(0, 0, 0, 0.25);
+      background: var(--surface);
     }}
     .detail-card {{
       padding: 16px;
       display: grid;
       grid-template-columns: 1fr;
       gap: 12px;
+      background: var(--surface);
     }}
     .detail-header {{
       display: flex;
@@ -264,7 +276,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       <header>
         <div class="header-bar">
           <h1>{escaped_title}</h1>
-          <button id="stop-all" class="button">Reset players</button>
+          <div style="display:flex; gap:8px;">
+            <button id="theme-toggle" class="button">Light mode</button>
+            <button id="stop-all" class="button">Reset players</button>
+          </div>
         </div>
       </header>
       <div class="table-wrapper">
@@ -274,8 +289,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
               <th data-sort="page_name">Label/Page <span class="sort-indicator"></span></th>
               <th data-sort="artist">Artist <span class="sort-indicator"></span></th>
               <th data-sort="title">Title <span class="sort-indicator"></span></th>
-              <th data-sort="date">Date <span class="sort-indicator"></span></th>
-              <th>Actions</th>
+              <th data-sort="date" style="width:130px;">Date <span class="sort-indicator"></span></th>
             </tr>
           </thead>
           <tbody id="release-rows"></tbody>
@@ -295,16 +309,33 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       direction: "desc",
       activeLabels: new Set(),
     }};
+    const THEME_KEY = "bc_dashboard_theme";
+    const themeToggleBtn = document.getElementById("theme-toggle");
+    function applyTheme(theme) {{
+      const isLight = theme === "light";
+      document.body.classList.toggle("theme-light", isLight);
+      if (themeToggleBtn) {{
+        themeToggleBtn.textContent = isLight ? "Dark mode" : "Light mode";
+      }}
+      localStorage.setItem(THEME_KEY, isLight ? "light" : "dark");
+    }}
+    const savedTheme = localStorage.getItem(THEME_KEY) || "light";
+    applyTheme(savedTheme);
+    if (themeToggleBtn) {{
+      themeToggleBtn.addEventListener("click", () => {{
+        const next = document.body.classList.contains("theme-light") ? "dark" : "light";
+        applyTheme(next);
+      }});
+    }}
 
     function formatDate(value) {{
       if (!value) return "";
       const parsed = new Date(value);
       if (isNaN(parsed.getTime())) return value;
-      return parsed.toLocaleDateString(undefined, {{
-        year: "numeric",
-        month: "short",
-        day: "numeric"
-      }});
+      const y = parsed.getFullYear();
+      const m = `${{parsed.getMonth() + 1}}`.padStart(2, "0");
+      const d = `${{parsed.getDate()}}`.padStart(2, "0");
+      return `${{y}}-${{m}}-${{d}}`;
     }}
 
     function pageUrlFor(release) {{
@@ -448,22 +479,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
 
     function attachRowActions(row, release) {{
-      const wishlistBtn = row.querySelector('button[data-action="wishlist"]');
-      const cartBtn = row.querySelector('button[data-action="cart"]');
-      const targetUrl = release.url || pageUrlFor(release);
-      [wishlistBtn, cartBtn].forEach(btn => {{
-        if (!btn) return;
-        if (!targetUrl || targetUrl === "#") {{
-          btn.disabled = true;
-          btn.title = "No Bandcamp link available";
-          return;
-        }}
-        btn.type = "button";
-        btn.addEventListener("click", evt => {{
-          evt.stopPropagation();
-          window.open(targetUrl, "_blank", "noopener");
-        }});
-      }});
+      // no-op; buttons removed
     }}
 
     function createDetailRow(release) {{
@@ -505,12 +521,6 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.artist || "—"}}</a></td>
           <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a></td>
           <td>${{formatDate(release.date)}}</td>
-          <td>
-            <div class="actions">
-              <button class="button" data-action="wishlist">Add to wishlist</button>
-              <button class="button primary" data-action="cart">Add to cart</button>
-            </div>
-          </td>
         `;
 
         tr.addEventListener("click", () => {{
