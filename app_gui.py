@@ -87,8 +87,11 @@ def main():
     root = Tk()
     root.title("Bandcamp Release Dashboard")
 
-    start_date_var = StringVar(value=datetime.date.today().strftime("%Y/%m/%d"))
-    end_date_var = StringVar(value=datetime.date.today().strftime("%Y/%m/%d"))
+    today = datetime.date.today()
+    two_months_ago = today - datetime.timedelta(days=60)
+
+    start_date_var = StringVar(value=two_months_ago.strftime("%Y/%m/%d"))
+    end_date_var = StringVar(value=today.strftime("%Y/%m/%d"))
     max_results_var = IntVar(value=500)
 
     def label_row(text, var, row):
@@ -96,12 +99,12 @@ def main():
         Entry(root, textvariable=var, width=15).grid(row=row, column=1, padx=8, pady=6, sticky="w")
 
     label_row("Start date (YYYY/MM/DD)", start_date_var, 0)
-    Button(root, text="Pick", command=lambda: start_date_var.set(pick_date("Select start date", datetime.date.today()))).grid(row=0, column=2, padx=8)
+    Button(root, text="Pick", command=lambda: start_date_var.set(pick_date("Select start date", two_months_ago))).grid(row=0, column=2, padx=8)
 
     label_row("End date (YYYY/MM/DD)", end_date_var, 1)
-    Button(root, text="Pick", command=lambda: end_date_var.set(pick_date("Select end date", datetime.date.today()))).grid(row=1, column=2, padx=8)
+    Button(root, text="Pick", command=lambda: end_date_var.set(pick_date("Select end date", today))).grid(row=1, column=2, padx=8)
 
-    label_row("Max results (<=2000)", max_results_var, 2)
+    label_row("Max results", max_results_var, 2)
 
     proxy_thread = None
     proxy_port = PROXY_PORT
@@ -109,7 +112,10 @@ def main():
     def on_run():
         nonlocal proxy_thread, proxy_port
         try:
-            max_results = min(int(max_results_var.get()), MAX_RESULTS_HARD)
+            max_results = int(max_results_var.get())
+            if max_results > MAX_RESULTS_HARD:
+                messagebox.showerror("Error", f"Max results cannot exceed {MAX_RESULTS_HARD}")
+                return
         except ValueError:
             messagebox.showerror("Error", "Max results must be a number")
             return
