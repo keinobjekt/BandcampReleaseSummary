@@ -147,7 +147,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       display: grid;
       gap: 8px;
     }}
-    .filter-item {{
+.filter-item {{
       display: flex;
       align-items: center;
       gap: 8px;
@@ -158,6 +158,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
     .filter-item input {{
       accent-color: var(--accent);
+    }}
+    .filter-count {{
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 12px;
     }}
     main {{
       padding: 0 16px 32px 16px;
@@ -421,7 +426,13 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
 
     function renderFilters() {{
-      const labels = [...new Set(releases.map(r => r.page_name).filter(Boolean))].sort();
+      const counts = releases.reduce((acc, r) => {{
+        if (!r.page_name) return acc;
+        acc[r.page_name] = (acc[r.page_name] || 0) + 1;
+        return acc;
+      }}, {{}});
+      const labels = Object.keys(counts)
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       const container = document.getElementById("label-filters");
       container.innerHTML = "";
 
@@ -450,8 +461,12 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         }});
         const text = document.createElement("span");
         text.textContent = label;
+        const count = document.createElement("span");
+        count.className = "filter-count";
+        count.textContent = `(${{counts[label]}})`;
         wrapper.appendChild(checkbox);
         wrapper.appendChild(text);
+        wrapper.appendChild(count);
         container.appendChild(wrapper);
       }});
     }}
