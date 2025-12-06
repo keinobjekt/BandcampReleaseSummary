@@ -526,6 +526,15 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           </div>
         </div>`;
       tr.appendChild(td);
+      td.addEventListener("click", (evt) => {{
+        // Ignore clicks directly on the iframe
+        if (evt.target.tagName.toLowerCase() === "iframe") return;
+        // Focus the parent data row without toggling collapse
+        const dataRow = tr.previousElementSibling;
+        if (dataRow && dataRow.classList.contains("data-row")) {{
+          dataRow.focus();
+        }}
+      }});
       return tr;
     }}
 
