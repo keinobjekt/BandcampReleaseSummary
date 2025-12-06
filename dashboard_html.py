@@ -101,6 +101,14 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       font-size: 22px;
       letter-spacing: 0.3px;
     }}
+    .row-dot {{
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      opacity: 0.7;
+    }}
     .header-bar {{
       display: flex;
       align-items: center;
@@ -286,6 +294,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         <table aria-label="Bandcamp releases">
           <thead>
             <tr>
+              <th style="width:16px;"></th>
               <th data-sort="page_name">Label/Page <span class="sort-indicator"></span></th>
               <th data-sort="artist">Artist <span class="sort-indicator"></span></th>
               <th data-sort="title">Title <span class="sort-indicator"></span></th>
@@ -519,6 +528,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         tr.className = "data-row";
         tr.dataset.page = release.page_name || "";
         tr.innerHTML = `
+          <td style="width:16px;"><span class="row-dot"></span></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.page_name || "Unknown"}}</a></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.artist || "—"}}</a></td>
           <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a></td>
@@ -551,6 +561,8 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           tr.classList.add("expanded");
 
           const embedTarget = detail.querySelector("[data-embed-target]");
+          const dot = tr.querySelector(".row-dot");
+          if (dot) dot.remove();
           ensureEmbed(release).then(embedUrl => {{
             if (!embedUrl) {{
               embedTarget.innerHTML = `<div class="detail-meta">No embed available. <a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">Open on Bandcamp</a>.</div>`;
