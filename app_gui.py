@@ -9,8 +9,10 @@ import argparse
 import datetime
 import threading
 import webbrowser
+import sys
 from pathlib import Path
 from tkinter import Tk, StringVar, IntVar, Toplevel, Button, Label, Entry, messagebox
+from tkinter.scrolledtext import ScrolledText
 
 from tkcalendar import Calendar
 
@@ -109,6 +111,31 @@ def main():
     proxy_thread = None
     proxy_port = PROXY_PORT
 
+    # Status box
+    status_box = ScrolledText(root, width=60, height=12, state="disabled")
+    status_box.grid(row=4, column=0, columnspan=3, padx=8, pady=8, sticky="nsew")
+
+    class GuiLogger:
+        def __init__(self, callback):
+            self.callback = callback
+
+        def write(self, msg):
+            if msg.strip():
+                self.callback(msg.rstrip())
+
+        def flush(self):
+            pass
+
+    def append_log(msg: str):
+        status_box.configure(state="normal")
+        status_box.insert("end", msg + "\n")
+        status_box.see("end")
+        status_box.configure(state="disabled")
+
+    def log(msg: str):
+        # marshal to UI thread
+        root.after(0, append_log, msg)
+
     def on_run():
         nonlocal proxy_thread, proxy_port
         try:
@@ -130,11 +157,23 @@ def main():
         if proxy_thread is None or not proxy_thread.is_alive():
             proxy_thread, proxy_port = start_proxy_thread()
 
-        try:
-            run_pipeline(start_date_var.get(), end_date_var.get(), max_results, proxy_port)
-            messagebox.showinfo("Done", "Dashboard generated and opened in browser.")
-        except Exception as exc:
-            messagebox.showerror("Error", str(exc))
+        def worker():
+            try:
+                log(f"Running query from {start_date_var.get()} to {end_date_var.get()} with max {max_results} (proxy port {proxy_port})")
+                original_stdout = sys.stdout
+                logger = GuiLogger(log)
+                sys.stdout = logger
+                try:
+                    run_pipeline(start_date_var.get(), end_date_var.get(), max_results, proxy_port)
+                    log("Dashboard generated and opened in browser.")
+                    root.after(0, lambda: messagebox.showinfo("Done", "Dashboard generated and opened in browser."))
+                finally:
+                    sys.stdout = original_stdout
+            except Exception as exc:
+                log(f"Error: {exc}")
+                root.after(0, lambda: messagebox.showerror("Error", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
 
     Button(root, text="Run", command=on_run).grid(row=3, column=0, columnspan=3, pady=12)
 
