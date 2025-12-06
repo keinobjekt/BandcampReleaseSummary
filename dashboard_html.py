@@ -462,7 +462,9 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
 
     function closeOpenDetailRows() {{
       document.querySelectorAll(".detail-row").forEach(node => {{
-        node.style.display = "none";
+        const iframe = node.querySelector("iframe");
+        if (iframe) iframe.remove();
+        node.remove();
       }});
       document.querySelectorAll("tr.data-row").forEach(row => row.classList.remove("expanded"));
     }}
