@@ -586,10 +586,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           const dot = tr.querySelector(".row-dot");
           if (dot) dot.classList.add("read");
           ensureEmbed(release).then(embedUrl => {{
-            if (!embedUrl) {{
-              embedTarget.innerHTML = `<div class="detail-meta">No embed available. <a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">Open on Bandcamp</a>.</div>`;
-              return;
-            }}
+              if (!embedUrl) {{
+                embedTarget.innerHTML = `<div class="detail-meta">No embed available. Is the app still running? <br><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">Open on Bandcamp</a>.</div>`;
+                return;
+              }}
             const height = release.is_track ? 320 : 480;
             embedTarget.innerHTML = `<iframe title="Bandcamp player" style="border:0; width:100%; height:${{height}}px;" src="${{embedUrl}}" seamless></iframe>`;
           }});
