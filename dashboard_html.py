@@ -606,6 +606,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             tr.click();
             return;
           }}
+          if (evt.key === "Enter") {{
+            evt.preventDefault();
+            tr.click();
+            return;
+          }}
           if (evt.key === "ArrowDown" || evt.key === "ArrowUp") {{
             evt.preventDefault();
             const rows = Array.from(document.querySelectorAll("tr.data-row"));
@@ -613,8 +618,8 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             const nextIdx = evt.key === "ArrowDown" ? idx + 1 : idx - 1;
             if (nextIdx >= 0 && nextIdx < rows.length) {{
               rows[nextIdx].focus();
-              rows[nextIdx].dispatchEvent(new Event("click"));
             }}
+            return;
           }}
           if (evt.key.toLowerCase() === "u") {{
             evt.preventDefault();
