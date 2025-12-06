@@ -527,6 +527,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         const tr = document.createElement("tr");
         tr.className = "data-row";
         tr.dataset.page = release.page_name || "";
+        tr.tabIndex = 0;
         tr.innerHTML = `
           <td style="width:16px;"><span class="row-dot"></span></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.page_name || "Unknown"}}</a></td>
@@ -536,6 +537,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         `;
 
         tr.addEventListener("click", () => {{
+          tr.focus();
           const existingDetail = tr.nextElementSibling;
           const hasDetail = existingDetail && existingDetail.classList.contains("detail-row");
           const wasVisible = hasDetail && existingDetail.style.display !== "none";
@@ -571,6 +573,29 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             const height = release.is_track ? 320 : 480;
             embedTarget.innerHTML = `<iframe title="Bandcamp player" style="border:0; width:100%; height:${{height}}px;" src="${{embedUrl}}" seamless></iframe>`;
           }});
+        }});
+
+        tr.addEventListener("keydown", (evt) => {{
+          if (evt.key === "Escape") {{
+            evt.preventDefault();
+            closeOpenDetailRows();
+            return;
+          }}
+          if (evt.key === " " || evt.key === "Spacebar" || evt.key === "Space") {{
+            evt.preventDefault();
+            tr.click();
+            return;
+          }}
+          if (evt.key === "ArrowDown" || evt.key === "ArrowUp") {{
+            evt.preventDefault();
+            const rows = Array.from(document.querySelectorAll("tr.data-row"));
+            const idx = rows.indexOf(tr);
+            const nextIdx = evt.key === "ArrowDown" ? idx + 1 : idx - 1;
+            if (nextIdx >= 0 && nextIdx < rows.length) {{
+              rows[nextIdx].focus();
+              rows[nextIdx].dispatchEvent(new Event("click"));
+            }}
+          }}
         }});
 
         // Hover-based preload with debounce (0.2s)
