@@ -108,6 +108,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       border-radius: 50%;
       background: var(--muted);
       opacity: 0.7;
+      cursor: pointer;
+      transition: opacity 0.12s ease;
+    }}
+    .row-dot.read {{
+      opacity: 0;
     }}
     .header-bar {{
       display: flex;
@@ -564,7 +569,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
 
           const embedTarget = detail.querySelector("[data-embed-target]");
           const dot = tr.querySelector(".row-dot");
-          if (dot) dot.remove();
+          if (dot) dot.classList.add("read");
           ensureEmbed(release).then(embedUrl => {{
             if (!embedUrl) {{
               embedTarget.innerHTML = `<div class="detail-meta">No embed available. <a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">Open on Bandcamp</a>.</div>`;
@@ -597,6 +602,14 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             }}
           }}
         }});
+
+        const dot = tr.querySelector(".row-dot");
+        if (dot) {{
+          dot.addEventListener("click", (evt) => {{
+            evt.stopPropagation();
+            dot.classList.toggle("read");
+          }});
+        }}
 
         // Hover-based preload with debounce (0.2s)
         let hoverTimer;
