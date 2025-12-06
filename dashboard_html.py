@@ -616,13 +616,29 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
               rows[nextIdx].dispatchEvent(new Event("click"));
             }}
           }}
+          if (evt.key.toLowerCase() === "u") {{
+            evt.preventDefault();
+            const markerCell = tr.querySelector("td:first-child");
+            if (markerCell) {{
+              const dot = markerCell.querySelector(".row-dot");
+              if (dot) dot.classList.toggle("read", false);
+              else {{
+                const newDot = document.createElement("span");
+                newDot.className = "row-dot";
+                markerCell.appendChild(newDot);
+              }}
+            }}
+          }}
         }});
 
-        const dot = tr.querySelector(".row-dot");
-        if (dot) {{
-          dot.addEventListener("click", (evt) => {{
+        const markerCell = tr.querySelector("td:first-child");
+        if (markerCell) {{
+          markerCell.addEventListener("click", (evt) => {{
             evt.stopPropagation();
-            dot.classList.toggle("read");
+            const dot = markerCell.querySelector(".row-dot");
+            if (dot) {{
+              dot.classList.toggle("read");
+            }}
           }});
         }}
 
