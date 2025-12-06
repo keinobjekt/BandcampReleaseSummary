@@ -647,17 +647,21 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           }});
         }}
 
-        // Hover-based preload with debounce (0.2s)
-        let hoverTimer;
-        tr.addEventListener("mouseenter", () => {{
-          hoverTimer = setTimeout(() => ensureEmbed(release), 200);
-        }});
-        tr.addEventListener("mouseleave", () => {{
-          if (hoverTimer) {{
-            clearTimeout(hoverTimer);
-            hoverTimer = null;
+        // Hover/focus-based preload with debounce (0.2s)
+        let preloadTimer;
+        const schedulePreload = () => {{
+          preloadTimer = setTimeout(() => ensureEmbed(release), 200);
+        }};
+        const cancelPreload = () => {{
+          if (preloadTimer) {{
+            clearTimeout(preloadTimer);
+            preloadTimer = null;
           }}
-        }});
+        }};
+        tr.addEventListener("mouseenter", schedulePreload);
+        tr.addEventListener("mouseleave", cancelPreload);
+        tr.addEventListener("focus", schedulePreload);
+        tr.addEventListener("blur", cancelPreload);
 
         attachRowActions(tr, release);
         tbody.appendChild(tr);
