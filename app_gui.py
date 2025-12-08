@@ -12,7 +12,7 @@ import webbrowser
 import sys
 import json
 from pathlib import Path
-from tkinter import Tk, StringVar, IntVar, Toplevel, Button, Label, Entry, messagebox
+from tkinter import Tk, StringVar, IntVar, Toplevel, Button, Label, Entry, Frame, messagebox
 from tkinter.scrolledtext import ScrolledText
 
 from tkcalendar import Calendar
@@ -102,6 +102,7 @@ def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port
 def main():
     root = Tk()
     root.title("Bandcamp Release Dashboard")
+    root.resizable(False, False)
 
     today = datetime.date.today()
     two_months_ago = today - datetime.timedelta(days=60)
@@ -118,17 +119,140 @@ def main():
     max_results_var = IntVar(value=_coerce_max(settings.get("max_results"), 500))
     preload_embeds_var = IntVar(value=1 if settings.get("preload_embeds") else 0)
 
-    def label_row(text, var, row):
-        Label(root, text=text).grid(row=row, column=0, padx=8, pady=6, sticky="w")
-        Entry(root, textvariable=var, width=15).grid(row=row, column=1, padx=8, pady=6, sticky="w")
+    # Custom layout for date rows to fit compact buttons around the entry
+    date_button_sets = []
+    date_frame = Frame(root)
+    date_frame.grid(row=0, column=0, columnspan=3, padx=6, pady=4, sticky="w")
+    for col in range(1, 8):
+        date_frame.grid_columnconfigure(col, minsize=34)
 
-    label_row("Start date (YYYY/MM/DD)", start_date_var, 0)
-    Button(root, text="Pick", command=lambda: start_date_var.set(pick_date("Select start date", two_months_ago))).grid(row=0, column=2, padx=8)
+    def layout_date_row(label_text: str, var: StringVar, row: int, is_start: bool):
+        left_configs = [("<1m", -30), ("<1w", -7), ("<1d", -1)]
+        right_configs = [(">1d", 1), (">1w", 7), (">1m", 30)]
 
-    label_row("End date (YYYY/MM/DD)", end_date_var, 1)
-    Button(root, text="Pick", command=lambda: end_date_var.set(pick_date("Select end date", today))).grid(row=1, column=2, padx=8)
+        Label(date_frame, text=label_text).grid(row=row, column=0, padx=4, sticky="w")
 
-    label_row("Max results", max_results_var, 2)
+        def make_btn(col: int, label: str, days: int):
+            delta = datetime.timedelta(days=days)
+            btn = Button(
+                date_frame,
+                text=label,
+                width=0,  # let the text size drive width
+                padx=1,
+                pady=0,
+                font=("TkDefaultFont", 8),
+                command=lambda v=var, d=delta: adjust_date(v, is_start, d) if days !=0 else v.set(today.strftime("%Y/%m/%d")),
+            )
+            btn.grid(row=row, column=col, padx=1, pady=1, sticky="w")
+            date_button_sets.append((btn, delta, is_start))
+
+        col = 1
+        for label, days in left_configs:
+            make_btn(col, label, days)
+            col += 1
+
+        Entry(date_frame, textvariable=var, width=12).grid(row=row, column=4, padx=4, pady=2, sticky="w")
+        col = 5
+        for label, days in right_configs:
+            make_btn(col, label, days)
+            col += 1
+        if is_start:
+            btn = Button(
+                date_frame,
+                text="Same as end",
+                width=12,
+                padx=1,
+                pady=0,
+                font=("TkDefaultFont", 8),
+                command=lambda: var.set(end_date_var.get()),
+            )
+            btn.grid(row=row, column=col, padx=1, pady=1, sticky="w")
+            date_button_sets.append((btn, datetime.timedelta(days=0), is_start))
+        else:
+            btn = Button(
+                date_frame,
+                text="Same as start",
+                width=12,
+                padx=1,
+                pady=0,
+                font=("TkDefaultFont", 8),
+                command=lambda: var.set(start_date_var.get()),
+            )
+            btn.grid(row=row, column=col, padx=1, pady=1, sticky="w")
+            date_button_sets.append((btn, datetime.timedelta(days=0), is_start))
+
+    def parse_date_var(var: StringVar, fallback: datetime.date) -> datetime.date:
+        try:
+            return datetime.datetime.strptime(var.get(), "%Y/%m/%d").date()
+        except Exception:
+            return fallback
+
+    def can_adjust(is_start: bool, delta: datetime.timedelta) -> bool:
+        start_dt = parse_date_var(start_date_var, two_months_ago)
+        end_dt = parse_date_var(end_date_var, today)
+        new_start = start_dt + delta if is_start else start_dt
+        new_end = end_dt + delta if not is_start else end_dt
+        if new_start > new_end:
+            return False
+        if new_start > today or new_end > today:
+            return False
+        return True
+
+    def adjust_date(var: StringVar, is_start: bool, delta: datetime.timedelta):
+        if not can_adjust(is_start, delta):
+            return
+        current = parse_date_var(var, today if is_start else two_months_ago)
+        new_date = current + delta
+        if new_date > today:
+            new_date = today
+        var.set(new_date.strftime("%Y/%m/%d"))
+
+    layout_date_row("Start date (YYYY/MM/DD)", start_date_var, 0, True)
+    layout_date_row("End date (YYYY/MM/DD)", end_date_var, 1, False)
+
+    def parse_date_var(var: StringVar, fallback: datetime.date) -> datetime.date:
+        try:
+            return datetime.datetime.strptime(var.get(), "%Y/%m/%d").date()
+        except Exception:
+            return fallback
+
+    def can_adjust(is_start: bool, delta: datetime.timedelta) -> bool:
+        start_dt = parse_date_var(start_date_var, two_months_ago)
+        end_dt = parse_date_var(end_date_var, today)
+        new_start = start_dt + delta if is_start else start_dt
+        new_end = end_dt + delta if not is_start else end_dt
+        if new_start > new_end:
+            return False
+        if new_start > today or new_end > today:
+            return False
+        return True
+
+    def adjust_date(var: StringVar, is_start: bool, delta: datetime.timedelta):
+        if not can_adjust(is_start, delta):
+            return
+        current = parse_date_var(var, today if is_start else two_months_ago)
+        new_date = current + delta
+        # clamp to today
+        if new_date > today:
+            new_date = today
+        var.set(new_date.strftime("%Y/%m/%d"))
+
+    def refresh_date_buttons(*_):
+        for btn, delta, is_start in date_button_sets:
+            btn_state = "normal" if can_adjust(is_start, delta) else "disabled"
+            btn.config(state=btn_state)
+
+    start_date_var.trace_add("write", refresh_date_buttons)
+    end_date_var.trace_add("write", refresh_date_buttons)
+    refresh_date_buttons()
+
+    # Align max results with date entry column
+    max_frame = Frame(root)
+    max_frame.grid(row=2, column=0, columnspan=3, padx=6, pady=6, sticky="w")
+    for col in range(1, 4):
+        max_frame.grid_columnconfigure(col, minsize=34)
+    Label(max_frame, text="Max results").grid(row=0, column=0, padx=4, sticky="w")
+    Entry(max_frame, textvariable=max_results_var, width=12).grid(row=0, column=4, padx=4, pady=2, sticky="w")
 
     proxy_thread = None
     proxy_port = PROXY_PORT
@@ -148,7 +272,7 @@ def main():
 
 
     # Status box
-    status_box = ScrolledText(root, width=100, height=12, state="disabled")
+    status_box = ScrolledText(root, width=80, height=12, state="disabled")
     status_box.grid(row=5, column=0, columnspan=3, padx=8, pady=8, sticky="nsew")
 
     class GuiLogger:
