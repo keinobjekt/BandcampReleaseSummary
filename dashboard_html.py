@@ -343,6 +343,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
   <script>
     const releases = JSON.parse(document.getElementById("release-data").textContent);
     const VIEWED_KEY = "bc_viewed_releases_v1";
+    const EMBED_CACHE_KEY = "bc_embed_cache_v1";
     function releaseKey(release) {{
       return release.url || [release.page_name, release.artist, release.title, release.date].filter(Boolean).join("|");
     }}
@@ -361,6 +362,22 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         localStorage.setItem(VIEWED_KEY, JSON.stringify(Array.from(set)));
       }} catch (err) {{}}
     }}
+    function loadEmbedCache() {{
+      try {{
+        const raw = localStorage.getItem(EMBED_CACHE_KEY);
+        if (!raw) return {{}};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {{}};
+      }} catch (err) {{
+        return {{}};
+      }}
+    }}
+    function persistEmbedCache(cache) {{
+      try {{
+        localStorage.setItem(EMBED_CACHE_KEY, JSON.stringify(cache));
+      }} catch (err) {{}}
+    }}
+    const embedCache = loadEmbedCache();
     function setViewed(release, isRead) {{
       const key = releaseKey(release);
       if (!key) return;
@@ -378,6 +395,14 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       showOnlyLabels: new Set(),
       viewed: loadViewedSet(),
     }};
+    // Prime releases with any cached embed info to avoid re-fetching
+    releases.forEach(r => {{
+      const cached = r.url ? embedCache[r.url] : null;
+      if (!cached) return;
+      if (cached.embed_url && !r.embed_url) r.embed_url = cached.embed_url;
+      if (typeof cached.is_track === "boolean" && typeof r.is_track !== "boolean") r.is_track = cached.is_track;
+      if (cached.release_id && !r.release_id) r.release_id = cached.release_id;
+    }});
     const THEME_KEY = "bc_dashboard_theme";
     const themeToggleBtn = document.getElementById("theme-toggle");
     function applyTheme(theme) {{
@@ -395,6 +420,17 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         const next = document.body.classList.contains("theme-light") ? "dark" : "light";
         applyTheme(next);
       }});
+    }}
+
+    function persistEmbedInfo(release) {{
+      const url = release.url;
+      if (!url) return;
+      embedCache[url] = {{
+        embed_url: release.embed_url || null,
+        release_id: release.release_id || null,
+        is_track: typeof release.is_track === "boolean" ? release.is_track : null,
+      }};
+      persistEmbedCache(embedCache);
     }}
 
     function formatDate(value) {{
@@ -438,7 +474,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
 
     async function ensureEmbed(release) {{
-      if (release.embed_url) return release.embed_url;
+      if (release.embed_url) {{
+        persistEmbedInfo(release);
+        return release.embed_url;
+      }}
       if (!release.url) return null;
 
       const tryDirect = async () => {{
@@ -448,7 +487,9 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         if (!meta) return null;
         const embedUrl = buildEmbedUrl(meta.item_id, meta.item_type === "track");
         release.embed_url = embedUrl;
+        if (meta.item_id) release.release_id = meta.item_id;
         release.is_track = meta.item_type === "track";
+        persistEmbedInfo(release);
         return embedUrl;
       }};
 
@@ -460,9 +501,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             const data = await response.json();
             const embedUrl = data.embed_url || buildEmbedUrl(data.release_id, data.is_track);
             release.embed_url = embedUrl;
+            if (data.release_id) release.release_id = data.release_id;
             if (typeof data.is_track === "boolean") {{
               release.is_track = data.is_track;
             }}
+            persistEmbedInfo(release);
             if (embedUrl) return embedUrl;
           }} catch (proxyErr) {{
             console.warn("Proxy embed fetch failed, falling back to direct fetch", proxyErr);
