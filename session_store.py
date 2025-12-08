@@ -17,6 +17,7 @@ CacheType = Dict[str, List[dict]]
 
 CACHE_PATH = Path("data") / "release_cache.json"
 EMPTY_PATH = Path("data") / "no_results_dates.json"
+EMBED_CACHE_PATH = Path("data") / "embed_cache.json"
 
 
 def _ensure_cache_dir() -> None:
@@ -44,6 +45,26 @@ def _save_cache(cache: CacheType) -> None:
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2)
     tmp_path.replace(CACHE_PATH)
+
+
+def _load_embed_cache() -> Dict[str, dict]:
+    _ensure_cache_dir()
+    if not EMBED_CACHE_PATH.exists():
+        return {}
+    try:
+        with open(EMBED_CACHE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_embed_cache(cache: Dict[str, dict]) -> None:
+    _ensure_cache_dir()
+    tmp_path = EMBED_CACHE_PATH.with_suffix(".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=2)
+    tmp_path.replace(EMBED_CACHE_PATH)
 
 
 def _load_empty_dates() -> Set[datetime.date]:
@@ -184,3 +205,35 @@ def persist_empty_date_range(start: datetime.date, end: datetime.date, *, exclud
             empty_dates.add(cursor)
         cursor += one_day
     _save_empty_dates(empty_dates)
+
+
+# --------------------------------------------------------------------------- #
+# Embed metadata cache (Bandcamp embed info)
+
+def load_embed_cache() -> Dict[str, dict]:
+    """Return the cached embed metadata keyed by release URL."""
+    return _load_embed_cache()
+
+
+def persist_embed_metadata(url: str, *, release_id=None, is_track=None, embed_url=None) -> None:
+    """
+    Save embed metadata for a Bandcamp release URL to avoid refetching later.
+    """
+    if not url:
+        return
+    cache = _load_embed_cache()
+    existing = cache.get(url, {})
+    merged = {
+        "release_id": existing.get("release_id"),
+        "is_track": existing.get("is_track"),
+        "embed_url": existing.get("embed_url"),
+    }
+    if release_id is not None:
+        merged["release_id"] = release_id
+    if is_track is not None:
+        merged["is_track"] = is_track
+    if embed_url is not None:
+        merged["embed_url"] = embed_url
+    cache[url] = merged
+    _save_embed_cache(cache)
+    return merged

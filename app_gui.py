@@ -64,7 +64,7 @@ def pick_date(title: str, initial: datetime.date) -> str:
     return selected.get()
 
 
-def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port: int, *, log=print):
+def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port: int, preload_embeds: bool, *, log=print):
     OUTPUT_DIR.mkdir(exist_ok=True)
     output_dir_name = OUTPUT_DIR / f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
     output_dir_name.mkdir(exist_ok=True)
@@ -74,8 +74,9 @@ def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port
         releases=releases,
         output_path=output_dir_name / "output.html",
         title="Bandcamp Release Dashboard",
-        fetch_missing_ids=False,
-        embed_proxy_url=f"http://localhost:{proxy_port}/embed-meta",
+        fetch_missing_ids=preload_embeds,
+        embed_proxy_url=None if preload_embeds else f"http://localhost:{proxy_port}/embed-meta",
+        log=log,
     )
     webbrowser.open_new_tab(output_file.resolve().as_uri())
 
@@ -90,6 +91,7 @@ def main():
     start_date_var = StringVar(value=two_months_ago.strftime("%Y/%m/%d"))
     end_date_var = StringVar(value=today.strftime("%Y/%m/%d"))
     max_results_var = IntVar(value=500)
+    preload_embeds_var = IntVar(value=0)
 
     def label_row(text, var, row):
         Label(root, text=text).grid(row=row, column=0, padx=8, pady=6, sticky="w")
@@ -108,7 +110,7 @@ def main():
 
     # Status box
     status_box = ScrolledText(root, width=100, height=12, state="disabled")
-    status_box.grid(row=4, column=0, columnspan=3, padx=8, pady=8, sticky="nsew")
+    status_box.grid(row=5, column=0, columnspan=3, padx=8, pady=8, sticky="nsew")
 
     class GuiLogger:
         def __init__(self, callback):
@@ -121,7 +123,14 @@ def main():
         def flush(self):
             pass
 
-    def append_log(msg: str):
+    def append_log(msg):
+        if isinstance(msg, bytes):
+            try:
+                msg = msg.decode("utf-8", errors="replace")
+            except Exception:
+                msg = str(msg)
+        else:
+            msg = str(msg)
         status_box.configure(state="normal")
         status_box.insert("end", msg + "\n")
         status_box.see("end")
@@ -149,21 +158,25 @@ def main():
             messagebox.showerror("Error", "Dates must be in YYYY/MM/DD format")
             return
 
-        if proxy_thread is None or not proxy_thread.is_alive():
+        should_preload = bool(preload_embeds_var.get())
+
+        if (not should_preload) and (proxy_thread is None or not proxy_thread.is_alive()):
             proxy_thread, proxy_port = start_proxy_thread()
 
         def worker():
             try:
+                original_stdout = sys.stdout
+                logger = GuiLogger(log)
+                sys.stdout = logger
+                
                 log(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
                 log(f"Starting Bandcamp Release Dashboard generation...")
                 log(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
                 log(f"")
-                log(f"Running query from {start_date_var.get()} to {end_date_var.get()} with max {max_results} (proxy port {proxy_port})")
-                original_stdout = sys.stdout
-                logger = GuiLogger(log)
-                sys.stdout = logger
+                log(f"Running query from {start_date_var.get()} to {end_date_var.get()} with max {max_results} (proxy port {proxy_port}, preload {'on' if should_preload else 'off'})")
+                
                 try:
-                    run_pipeline(start_date_var.get(), end_date_var.get(), max_results, proxy_port, log=log)
+                    run_pipeline(start_date_var.get(), end_date_var.get(), max_results, proxy_port, should_preload, log=log)
                     log("Dashboard generated and opened in browser.")
                     log("")
                     root.after(0, lambda: messagebox.showinfo("Done", "Dashboard generated and opened in browser."))
@@ -171,14 +184,17 @@ def main():
                     sys.stdout = original_stdout
             except Exception as exc:
                 log(f"Error: {exc}")
-                root.after(0, lambda: messagebox.showerror("Error", str(exc)))
+                root.after(0, lambda exc=exc: messagebox.showerror("Error", str(exc)))
 
         if MULTITHREADING:
             threading.Thread(target=worker, daemon=True).start()
         else:
             worker()
 
-    Button(root, text="Run", command=on_run).grid(row=3, column=0, columnspan=3, pady=12)
+    from tkinter import Checkbutton  # localized import to avoid polluting top
+    Checkbutton(root, text="Preload BC players (fetch Bandcamp pages now)", variable=preload_embeds_var).grid(row=3, column=0, columnspan=2, padx=8, sticky="w")
+
+    Button(root, text="Run", command=on_run).grid(row=4, column=0, columnspan=3, pady=12)
 
     root.mainloop()
 

@@ -25,13 +25,14 @@ from __future__ import annotations
 import ast
 import json
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup
 
 from dashboard_html import render_dashboard_html
+from session_store import load_embed_cache, persist_embed_metadata
 
 
 # --------------------------------------------------------------------------- #
@@ -88,28 +89,55 @@ def fetch_embed_metadata(release_url: str, timeout: int = 10) -> Dict[str, Optio
     return result
 
 
+EMBED_CACHE = load_embed_cache()
+
+
 # --------------------------------------------------------------------------- #
 # HTML generation
 
-def _normalize_release(entry: Dict[str, str], fetch_missing_ids: bool) -> Dict[str, str]:
+def _normalize_release(entry: Dict[str, str], fetch_missing_ids: bool, log: Callable[[str], None] | None = None) -> Dict[str, str]:
     """
     Map incoming data keys onto a consistent shape used by the dashboard.
     """
     url = entry.get("URL") or entry.get("url") or ""
     release_id = entry.get("release_id")
     is_track = entry.get("is_track")
+    embed_url = entry.get("embed_url")
+    fetched_meta = False
+
+    cached_meta = EMBED_CACHE.get(url) if url else None
+    if cached_meta:
+        if release_id is None:
+            release_id = cached_meta.get("release_id")
+        if is_track is None:
+            is_track = cached_meta.get("is_track")
+        if embed_url is None:
+            embed_url = cached_meta.get("embed_url")
 
     if release_id is None and fetch_missing_ids:
+        if log:
+            log(f"Fetching Bandcamp page for {url}")
         meta = fetch_embed_metadata(url)
         release_id = meta["release_id"]
         is_track = meta["is_track"]
+        fetched_meta = True
 
     if is_track is None:
         is_track = _guess_is_track(url)
 
     # Only pre-build an embed URL when we already have the ID; otherwise we will
     # fetch lazily in the browser when a row is expanded.
-    embed_url = _build_embed_url(release_id, url, is_track) if release_id else None
+    embed_url = embed_url or (_build_embed_url(release_id, url, is_track) if release_id else None)
+
+    if fetched_meta and url:
+        merged = persist_embed_metadata(
+            url,
+            release_id=release_id,
+            is_track=is_track,
+            embed_url=embed_url,
+        )
+        if merged:
+            EMBED_CACHE[url] = merged
 
     return {
         "artist": entry.get("artist") or "",
@@ -128,11 +156,12 @@ def build_release_dashboard_html(
     *,
     title: str = "Bandcamp Release Dashboard",
     fetch_missing_ids: bool = False,
+    log: Callable[[str], None] | None = None,
     embed_proxy_url: str | None = None,
 ) -> str:
     """Return a full HTML document for browsing Bandcamp releases."""
     normalized: List[Dict[str, str]] = [
-        _normalize_release(entry, fetch_missing_ids) for entry in releases
+        _normalize_release(entry, fetch_missing_ids, log) for entry in releases
     ]
     data_json = json.dumps(normalized, ensure_ascii=True)
     return render_dashboard_html(title=title, data_json=data_json, embed_proxy_url=embed_proxy_url)
@@ -144,6 +173,7 @@ def write_release_dashboard(
     *,
     title: str = "Bandcamp Release Dashboard",
     fetch_missing_ids: bool = False,
+    log: Callable[[str], None] | None = None,
     embed_proxy_url: str | None = None,
 ) -> Path:
     """
@@ -151,7 +181,7 @@ def write_release_dashboard(
     """
     output_path = Path(output_path)
     html_doc = build_release_dashboard_html(
-        releases, title=title, fetch_missing_ids=fetch_missing_ids, embed_proxy_url=embed_proxy_url
+        releases, title=title, fetch_missing_ids=fetch_missing_ids, embed_proxy_url=embed_proxy_url, log=log
     )
     output_path.write_text(html_doc, encoding="utf-8")
     return output_path

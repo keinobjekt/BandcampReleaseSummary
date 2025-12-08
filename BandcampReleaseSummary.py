@@ -200,7 +200,8 @@ if __name__ == "__main__":
                             output_path=f"{output_dir_name}/output.html",
                             title="Bandcamp Release Dashboard",
                             fetch_missing_ids=False,
-                            embed_proxy_url=k_embed_proxy_url)
+                            embed_proxy_url=k_embed_proxy_url,
+                            log=print)
     
     print(f"Dashboard written to {output_dir_name}/output.html")
     
