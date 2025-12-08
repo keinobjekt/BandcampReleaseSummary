@@ -154,6 +154,10 @@ def main():
 
         def worker():
             try:
+                log(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                log(f"Starting Bandcamp Release Dashboard generation...")
+                log(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+                log(f"")
                 log(f"Running query from {start_date_var.get()} to {end_date_var.get()} with max {max_results} (proxy port {proxy_port})")
                 original_stdout = sys.stdout
                 logger = GuiLogger(log)
@@ -161,6 +165,7 @@ def main():
                 try:
                     run_pipeline(start_date_var.get(), end_date_var.get(), max_results, proxy_port, log=log)
                     log("Dashboard generated and opened in browser.")
+                    log("")
                     root.after(0, lambda: messagebox.showinfo("Done", "Dashboard generated and opened in browser."))
                 finally:
                     sys.stdout = original_stdout

@@ -11,11 +11,12 @@ from __future__ import annotations
 import json
 import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Set, Tuple
 
 CacheType = Dict[str, List[dict]]
 
 CACHE_PATH = Path("data") / "release_cache.json"
+EMPTY_PATH = Path("data") / "no_results_dates.json"
 
 
 def _ensure_cache_dir() -> None:
@@ -43,6 +44,32 @@ def _save_cache(cache: CacheType) -> None:
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(cache, f, indent=2)
     tmp_path.replace(CACHE_PATH)
+
+
+def _load_empty_dates() -> Set[datetime.date]:
+    _ensure_cache_dir()
+    if not EMPTY_PATH.exists():
+        return set()
+    try:
+        with open(EMPTY_PATH, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+            dates = set()
+            for item in raw if isinstance(raw, list) else []:
+                day = _to_date(item)
+                if day:
+                    dates.add(day)
+            return dates
+    except Exception:
+        return set()
+
+
+def _save_empty_dates(dates: Set[datetime.date]) -> None:
+    _ensure_cache_dir()
+    tmp_path = EMPTY_PATH.with_suffix(".tmp")
+    payload = sorted(day.isoformat() for day in dates)
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    tmp_path.replace(EMPTY_PATH)
 
 
 def _to_date(val) -> datetime.date | None:
@@ -79,6 +106,7 @@ def persist_release_metadata(releases: Iterable[dict], *, exclude_today: bool = 
     Skips today's date when exclude_today is True.
     """
     cache = _load_cache()
+    empty_dates = _load_empty_dates()
     today = datetime.date.today()
     for release in releases:
         day = _to_date(release.get("date"))
@@ -91,7 +119,11 @@ def persist_release_metadata(releases: Iterable[dict], *, exclude_today: bool = 
         # avoid duplicates for the same day by URL
         combined = _dedupe_by_url([*existing, release])
         cache[key] = combined
+        # if we now have data for a day that was previously marked empty, clear that marker
+        if day in empty_dates:
+            empty_dates.discard(day)
     _save_cache(cache)
+    _save_empty_dates(empty_dates)
 
 
 def cached_releases_for_range(start: datetime.date, end: datetime.date) -> Tuple[List[dict], List[datetime.date]]:
@@ -100,6 +132,7 @@ def cached_releases_for_range(start: datetime.date, end: datetime.date) -> Tuple
     missing_dates are days with no cached entries.
     """
     cache = _load_cache()
+    empty_dates = _load_empty_dates()
     cursor = start
     cached: List[dict] = []
     missing: List[datetime.date] = []
@@ -109,6 +142,9 @@ def cached_releases_for_range(start: datetime.date, end: datetime.date) -> Tuple
         releases_for_day = cache.get(iso)
         if releases_for_day:
             cached.extend(releases_for_day)
+        elif cursor in empty_dates:
+            # known empty date; skip fetching in future sessions
+            pass
         else:
             missing.append(cursor)
         cursor += one_day
@@ -130,3 +166,21 @@ def collapse_date_ranges(dates: List[datetime.date]) -> List[Tuple[datetime.date
         start = prev = day
     ranges.append((start, prev))
     return ranges
+
+
+def persist_empty_date_range(start: datetime.date, end: datetime.date, *, exclude_today: bool = True) -> None:
+    """
+    Record a contiguous date range that returned no Gmail results so we avoid
+    querying it again. Optionally excludes today's date.
+    """
+    if start > end:
+        return
+    empty_dates = _load_empty_dates()
+    today = datetime.date.today()
+    cursor = start
+    one_day = datetime.timedelta(days=1)
+    while cursor <= end:
+        if not (exclude_today and cursor == today):
+            empty_dates.add(cursor)
+        cursor += one_day
+    _save_empty_dates(empty_dates)

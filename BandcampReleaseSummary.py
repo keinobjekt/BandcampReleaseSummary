@@ -11,6 +11,7 @@ from dashboard import write_release_dashboard
 from session_store import (
     cached_releases_for_range,
     collapse_date_ranges,
+    persist_empty_date_range,
     persist_release_metadata,
 )
 
@@ -68,31 +69,30 @@ def gather_releases_with_cache(after_date: str, before_date: str, max_results: i
         # Respect the user's cap: do not download more if cache already exceeds limit
         log(f"Maximum results of {max_results} already satisfied by cache; no Gmail download needed.")
         cap_reached = True
-        return releases[:max_results]
+    else:
+        service = gmail_authenticate()
 
-    service = gmail_authenticate()
-
-    for start_missing, end_missing in missing_ranges:
-        if remaining <= 0:
-            log(f"Reached maximum results of {max_results}; stopping further Gmail downloads.")
-            
-            break
-        query_after = start_missing.strftime("%Y/%m/%d")
-        query_before = end_missing.strftime("%Y/%m/%d")
-        search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{query_before} after:{query_after}"
-        log("")
-        log(f"Querying Gmail for {query_after} to {query_before} (remaining cap {remaining})")
-        message_ids = search_messages(service, search_query, max_results=remaining)
-        if not message_ids:
-            log(f"No messages found for {query_after} to {query_before}")
-            continue
-        log (f'Found {len(message_ids)} messages for {query_after} to {query_before}')
-        emails = get_messages(service, [msg["id"] for msg in message_ids], "full", batch_size)
-        new_releases = construct_release_list(emails)
-        log(f'Parsed {len(new_releases)} releases from Gmail for {query_after} to {query_before}.')
-        releases.extend(new_releases)
-        persist_release_metadata(new_releases, exclude_today=True)
-        remaining = max_results - len(releases)
+        for start_missing, end_missing in missing_ranges:
+            if remaining <= 0:
+                log(f"Reached maximum results of {max_results}; stopping further Gmail downloads.")
+                break
+            query_after = start_missing.strftime("%Y/%m/%d")
+            query_before = end_missing.strftime("%Y/%m/%d")
+            search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{query_before} after:{query_after}"
+            log("")
+            log(f"Querying Gmail for {query_after} to {query_before} (remaining cap {remaining})")
+            message_ids = search_messages(service, search_query, max_results=remaining)
+            if not message_ids:
+                log(f"No messages found for {query_after} to {query_before}")
+                persist_empty_date_range(start_missing, end_missing, exclude_today=True)
+                continue
+            log (f'Found {len(message_ids)} messages for {query_after} to {query_before}')
+            emails = get_messages(service, [msg["id"] for msg in message_ids], "full", batch_size)
+            new_releases = construct_release_list(emails)
+            log(f'Parsed {len(new_releases)} releases from Gmail for {query_after} to {query_before}.')
+            releases.extend(new_releases)
+            persist_release_metadata(new_releases, exclude_today=True)
+            remaining = max_results - len(releases)
 
     # Deduplicate on URL after combining cached + new
     seen_urls = set()
@@ -110,6 +110,9 @@ def gather_releases_with_cache(after_date: str, before_date: str, max_results: i
         log(f"Final total of {len(deduped)} unique releases (capped at {max_results} from cache).")
     else:
         log(f"Total of {len(deduped)} unique releases after combining cache and Gmail downloads.")
+
+    # Always persist the run results when a page will be generated, so cache is up to date.
+    persist_release_metadata(deduped, exclude_today=True)
 
     return deduped[:max_results] if max_results else deduped
 
