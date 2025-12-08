@@ -17,10 +17,9 @@ from tkinter.scrolledtext import ScrolledText
 from tkcalendar import Calendar
 
 from embed_proxy import app as proxy_app
-from BandcampReleaseSummary import construct_release_list, write_release_dashboard
-from gmail import gmail_authenticate, search_messages, get_messages
+from BandcampReleaseSummary import gather_releases_with_cache, write_release_dashboard
 
-
+MULTITHREADING = True
 PROXY_PORT = 5050
 
 def find_free_port(preferred: int = 5050) -> int:
@@ -65,16 +64,12 @@ def pick_date(title: str, initial: datetime.date) -> str:
     return selected.get()
 
 
-def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port: int):
+def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port: int, *, log=print):
     OUTPUT_DIR.mkdir(exist_ok=True)
     output_dir_name = OUTPUT_DIR / f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
     output_dir_name.mkdir(exist_ok=True)
 
-    service = gmail_authenticate()
-    search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{before_date} after:{after_date}"
-    message_ids = search_messages(service, search_query, max_results=max_results)
-    emails = get_messages(service, [msg["id"] for msg in message_ids], "full", batch_size=20)
-    releases = construct_release_list(emails)
+    releases = gather_releases_with_cache(after_date, before_date, max_results, batch_size=20, log=log)
     output_file = write_release_dashboard(
         releases=releases,
         output_path=output_dir_name / "output.html",
@@ -164,7 +159,7 @@ def main():
                 logger = GuiLogger(log)
                 sys.stdout = logger
                 try:
-                    run_pipeline(start_date_var.get(), end_date_var.get(), max_results, proxy_port)
+                    run_pipeline(start_date_var.get(), end_date_var.get(), max_results, proxy_port, log=log)
                     log("Dashboard generated and opened in browser.")
                     root.after(0, lambda: messagebox.showinfo("Done", "Dashboard generated and opened in browser."))
                 finally:
@@ -173,7 +168,10 @@ def main():
                 log(f"Error: {exc}")
                 root.after(0, lambda: messagebox.showerror("Error", str(exc)))
 
-        threading.Thread(target=worker, daemon=True).start()
+        if MULTITHREADING:
+            threading.Thread(target=worker, daemon=True).start()
+        else:
+            worker()
 
     Button(root, text="Run", command=on_run).grid(row=3, column=0, columnspan=3, pady=12)
 

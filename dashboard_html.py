@@ -340,11 +340,41 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
   </script>
   <script>
     const releases = JSON.parse(document.getElementById("release-data").textContent);
+    const VIEWED_KEY = "bc_viewed_releases_v1";
+    function releaseKey(release) {{
+      return release.url || [release.page_name, release.artist, release.title, release.date].filter(Boolean).join("|");
+    }}
+    function loadViewedSet() {{
+      try {{
+        const raw = localStorage.getItem(VIEWED_KEY);
+        if (!raw) return new Set();
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? new Set(parsed) : new Set();
+      }} catch (err) {{
+        return new Set();
+      }}
+    }}
+    function persistViewed(set) {{
+      try {{
+        localStorage.setItem(VIEWED_KEY, JSON.stringify(Array.from(set)));
+      }} catch (err) {{}}
+    }}
+    function setViewed(release, isRead) {{
+      const key = releaseKey(release);
+      if (!key) return;
+      if (isRead) {{
+        state.viewed.add(key);
+      }} else {{
+        state.viewed.delete(key);
+      }}
+      persistViewed(state.viewed);
+    }}
     const state = {{
       sortKey: "date",
       direction: "desc",
       showLabels: new Set(),
       showOnlyLabels: new Set(),
+      viewed: loadViewedSet(),
     }};
     const THEME_KEY = "bc_dashboard_theme";
     const themeToggleBtn = document.getElementById("theme-toggle");
@@ -621,6 +651,9 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a></td>
           <td>${{formatDate(release.date)}}</td>
         `;
+        const existingRead = state.viewed.has(releaseKey(release));
+        const initialDot = tr.querySelector(".row-dot");
+        if (initialDot) initialDot.classList.toggle("read", existingRead);
 
         tr.addEventListener("click", () => {{
           tr.focus();
@@ -651,6 +684,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           const embedTarget = detail.querySelector("[data-embed-target]");
           const dot = tr.querySelector(".row-dot");
           if (dot) dot.classList.add("read");
+          setViewed(release, true);
           ensureEmbed(release).then(embedUrl => {{
               if (!embedUrl) {{
                 embedTarget.innerHTML = `<div class="detail-meta">No embed available. Is the app still running? <br><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">Open on Bandcamp</a>.</div>`;
@@ -698,6 +732,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
                 newDot.className = "row-dot";
                 markerCell.appendChild(newDot);
               }}
+              setViewed(release, false);
             }}
           }}
         }});
@@ -708,7 +743,9 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             evt.stopPropagation();
             const dot = markerCell.querySelector(".row-dot");
             if (dot) {{
+              const willBeRead = !dot.classList.contains("read");
               dot.classList.toggle("read");
+              setViewed(release, willBeRead);
             }}
           }});
         }}
