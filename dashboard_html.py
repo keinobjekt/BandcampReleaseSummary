@@ -147,8 +147,9 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       display: grid;
       gap: 8px;
     }}
-.filter-item {{
-      display: flex;
+    .filter-item {{
+      display: grid;
+      grid-template-columns: auto auto 1fr auto;
       align-items: center;
       gap: 8px;
       padding: 8px 10px;
@@ -156,11 +157,27 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       border: 1px solid var(--border);
       border-radius: var(--radius);
     }}
-    .filter-item input {{
+    .filter-checkbox {{
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }}
+    .filter-checkbox.show {{
       accent-color: var(--accent);
+    }}
+    .filter-checkbox.show-only {{
+      accent-color: #ff6b6b;
+    }}
+    .filter-checkbox:disabled {{
+      opacity: 0.5;
+      cursor: not-allowed;
+    }}
+    .filter-item.show-only-active .filter-checkbox.show {{
+      opacity: 0.5;
     }}
     .filter-count {{
       margin-left: auto;
+      justify-self: end;
       color: var(--muted);
       font-size: 12px;
     }}
@@ -326,7 +343,8 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     const state = {{
       sortKey: "date",
       direction: "desc",
-      activeLabels: new Set(),
+      showLabels: new Set(),
+      showOnlyLabels: new Set(),
     }};
     const THEME_KEY = "bc_dashboard_theme";
     const themeToggleBtn = document.getElementById("theme-toggle");
@@ -441,33 +459,70 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         return;
       }}
 
-      if (state.activeLabels.size === 0) {{
-        labels.forEach(label => state.activeLabels.add(label));
+      if (state.showLabels.size === 0) {{
+        labels.forEach(label => state.showLabels.add(label));
       }}
 
+      const showOnlyMode = state.showOnlyLabels.size > 0;
+
       labels.forEach(label => {{
-        const wrapper = document.createElement("label");
+        const wrapper = document.createElement("div");
         wrapper.className = "filter-item";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.checked = state.activeLabels.has(label);
-        checkbox.addEventListener("change", () => {{
-          if (checkbox.checked) {{
-            state.activeLabels.add(label);
+        if (showOnlyMode) wrapper.classList.add("show-only-active");
+
+        const showCheckbox = document.createElement("input");
+        showCheckbox.type = "checkbox";
+        showCheckbox.className = "filter-checkbox show";
+        showCheckbox.dataset.filterRole = "show";
+        showCheckbox.checked = state.showLabels.has(label);
+        showCheckbox.disabled = showOnlyMode;
+        showCheckbox.addEventListener("change", () => {{
+          if (showCheckbox.checked) {{
+            state.showLabels.add(label);
           }} else {{
-            state.activeLabels.delete(label);
+            state.showLabels.delete(label);
           }}
           renderTable();
         }});
+
+        const showOnlyCheckbox = document.createElement("input");
+        showOnlyCheckbox.type = "checkbox";
+        showOnlyCheckbox.className = "filter-checkbox show-only";
+        showOnlyCheckbox.dataset.filterRole = "show-only";
+        showOnlyCheckbox.checked = state.showOnlyLabels.has(label);
+        showOnlyCheckbox.addEventListener("change", () => {{
+          if (showOnlyCheckbox.checked) {{
+            state.showOnlyLabels.add(label);
+          }} else {{
+            state.showOnlyLabels.delete(label);
+          }}
+          syncShowCheckboxAvailability();
+          renderTable();
+        }});
+
         const text = document.createElement("span");
         text.textContent = label;
         const count = document.createElement("span");
         count.className = "filter-count";
         count.textContent = `(${{counts[label]}})`;
-        wrapper.appendChild(checkbox);
+        wrapper.appendChild(showCheckbox);
+        wrapper.appendChild(showOnlyCheckbox);
         wrapper.appendChild(text);
         wrapper.appendChild(count);
         container.appendChild(wrapper);
+      }});
+
+      syncShowCheckboxAvailability();
+    }}
+
+    function syncShowCheckboxAvailability() {{
+      const disableShow = state.showOnlyLabels.size > 0;
+      document.querySelectorAll("#label-filters .filter-item").forEach(item => {{
+        const show = item.querySelector('input[data-filter-role="show"]');
+        if (show) {{
+          show.disabled = disableShow;
+        }}
+        item.classList.toggle("show-only-active", disableShow);
       }});
     }}
 
@@ -544,9 +599,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       closeOpenDetailRows();
 
       const filtered = releases.filter(r => {{
-        if (state.activeLabels.size === 0) return true;
+        const useShowOnly = state.showOnlyLabels.size > 0;
+        const activeSet = useShowOnly ? state.showOnlyLabels : state.showLabels;
+        if (activeSet.size === 0) return true;
         if (!r.page_name) return true;
-        return state.activeLabels.has(r.page_name);
+        return activeSet.has(r.page_name);
       }});
 
       const sorted = sortData(filtered);
