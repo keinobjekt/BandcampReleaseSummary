@@ -145,17 +145,18 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
     .filter-list {{
       display: grid;
-      gap: 8px;
+      gap: 4px;
     }}
     .filter-item {{
       display: grid;
       grid-template-columns: auto auto 1fr auto;
       align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      gap: 6px;
+      padding: 2px 0;
+      background: none;
+      border: none;
+      border-radius: 0;
+      line-height: 1.05;
     }}
     .filter-checkbox {{
       width: 16px;
@@ -204,9 +205,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       z-index: 5;
     }}
     th, td {{
-      padding: 10px 12px;
+      padding: 6px 8px;
       text-align: left;
       border-bottom: 1px solid var(--border);
+      line-height: 1.05;
     }}
     th {{
       user-select: none;
