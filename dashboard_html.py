@@ -312,7 +312,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     <main>
       <header>
         <div class="header-bar">
-          <h1>{escaped_title}</h1>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <h1>{escaped_title}</h1>
+            <div class="detail-meta" id="date-range"></div>
+          </div>
           <div style="display:flex; gap:8px;">
             <button id="theme-toggle" class="button">Light mode</button>
             <button id="stop-all" class="button">Reset players</button>
@@ -346,7 +349,30 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     function releaseKey(release) {{
       return release.url || [release.page_name, release.artist, release.title, release.date].filter(Boolean).join("|");
     }}
-    function loadViewedSet() {{
+    function renderDateRangeLabel() {{
+      const el = document.getElementById("date-range");
+      if (!el || !releases.length) return;
+      const dates = releases
+        .map(r => r.date)
+        .filter(Boolean)
+        .map(d => new Date(d))
+        .filter(d => !isNaN(d.getTime()))
+        .sort((a, b) => a - b);
+      if (!dates.length) {{
+        el.textContent = "";
+        return;
+      }}
+      const fmt = d => {{
+        const y = d.getFullYear();
+        const m = `${{d.getMonth() + 1}}`.padStart(2, "0");
+        const day = `${{d.getDate()}}`.padStart(2, "0");
+        return `${{y}}-${{m}}-${{day}}`;
+      }};
+      const first = dates[0];
+      const last = dates[dates.length - 1];
+      el.textContent = `Date range: ${{fmt(first)}} to ${{fmt(last)}}`;
+    }}
+    async function loadViewedSet() {{
       try {{
         const raw = localStorage.getItem(VIEWED_KEY);
         if (!raw) return new Set();
@@ -376,7 +402,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       direction: "desc",
       showLabels: new Set(),
       showOnlyLabels: new Set(),
-      viewed: loadViewedSet(),
+      viewed: new Set(),
     }};
     const THEME_KEY = "bc_dashboard_theme";
     const themeToggleBtn = document.getElementById("theme-toggle");
@@ -816,7 +842,15 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         stopAllPlayers();
       }});
     }}
-    renderTable();
+    // Render after viewed state loads to keep persisted read dots and show date range
+    loadViewedSet().then(set => {{
+      state.viewed = set;
+      renderDateRangeLabel();
+      renderTable();
+    }}).catch(() => {{
+      renderDateRangeLabel();
+      renderTable();
+    }});
   </script>
 </body>
 </html>
