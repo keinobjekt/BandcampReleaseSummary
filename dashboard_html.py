@@ -10,7 +10,7 @@ import html
 import json
 
 
-def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | None = None) -> str:
+def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | None = None, default_theme: str | None = None) -> str:
     """
     Build the full dashboard HTML document.
     """
@@ -399,6 +399,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     const releases = JSON.parse(document.getElementById("release-data").textContent);
     const VIEWED_KEY = "bc_viewed_releases_v1";
     const API_ROOT = EMBED_PROXY_URL ? EMBED_PROXY_URL.replace(/\/embed-meta.*$/, "") : null;
+    const DEFAULT_THEME = {json.dumps(default_theme or "light")};
     function releaseKey(release) {{
       return release.url || [release.page_name, release.artist, release.title, release.date].filter(Boolean).join("|");
     }}
@@ -493,7 +494,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       }}
       localStorage.setItem(THEME_KEY, isLight ? "light" : "dark");
     }}
-    const savedTheme = localStorage.getItem(THEME_KEY) || "light";
+    const savedTheme = localStorage.getItem(THEME_KEY) || DEFAULT_THEME || "light";
     applyTheme(savedTheme);
     if (themeToggleBtn) {{
       themeToggleBtn.checked = savedTheme !== "light";

@@ -10,6 +10,7 @@ import datetime
 import threading
 import webbrowser
 import sys
+import json
 from pathlib import Path
 from tkinter import Tk, StringVar, IntVar, Toplevel, Button, Label, Entry, messagebox
 from tkinter.scrolledtext import ScrolledText
@@ -21,6 +22,7 @@ from BandcampReleaseSummary import gather_releases_with_cache, write_release_das
 
 MULTITHREADING = True
 PROXY_PORT = 5050
+SETTINGS_PATH = Path("data") / "gui_settings.json"
 
 def find_free_port(preferred: int = 5050) -> int:
     import socket
@@ -33,6 +35,22 @@ def find_free_port(preferred: int = 5050) -> int:
             return s.getsockname()[1]
 MAX_RESULTS_HARD = 2000
 OUTPUT_DIR = Path("output")
+
+
+def load_settings():
+    try:
+        if SETTINGS_PATH.exists():
+            return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def save_settings(settings: dict):
+    SETTINGS_PATH.parent.mkdir(exist_ok=True)
+    tmp = SETTINGS_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    tmp.replace(SETTINGS_PATH)
 
 
 def start_proxy_thread():
@@ -75,7 +93,7 @@ def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port
         output_path=output_dir_name / "output.html",
         title="Bandcamp Release Dashboard",
         fetch_missing_ids=preload_embeds,
-        embed_proxy_url=None if preload_embeds else f"http://localhost:{proxy_port}/embed-meta",
+        embed_proxy_url=f"http://localhost:{proxy_port}/embed-meta",
         log=log,
     )
     webbrowser.open_new_tab(output_file.resolve().as_uri())
@@ -87,11 +105,18 @@ def main():
 
     today = datetime.date.today()
     two_months_ago = today - datetime.timedelta(days=60)
+    settings = load_settings()
 
-    start_date_var = StringVar(value=two_months_ago.strftime("%Y/%m/%d"))
-    end_date_var = StringVar(value=today.strftime("%Y/%m/%d"))
-    max_results_var = IntVar(value=500)
-    preload_embeds_var = IntVar(value=0)
+    def _coerce_max(val, default):
+        try:
+            return int(val)
+        except Exception:
+            return default
+
+    start_date_var = StringVar(value=settings.get("start_date") or two_months_ago.strftime("%Y/%m/%d"))
+    end_date_var = StringVar(value=settings.get("end_date") or today.strftime("%Y/%m/%d"))
+    max_results_var = IntVar(value=_coerce_max(settings.get("max_results"), 500))
+    preload_embeds_var = IntVar(value=1 if settings.get("preload_embeds") else 0)
 
     def label_row(text, var, row):
         Label(root, text=text).grid(row=row, column=0, padx=8, pady=6, sticky="w")
@@ -107,6 +132,20 @@ def main():
 
     proxy_thread = None
     proxy_port = PROXY_PORT
+    def save_current_settings(*_args):
+        save_settings(
+            {
+                "start_date": start_date_var.get(),
+                "end_date": end_date_var.get(),
+                "max_results": max_results_var.get(),
+                "preload_embeds": bool(preload_embeds_var.get()),
+            }
+        )
+
+    # Toggle defaults
+    from tkinter import Checkbutton  # localized import to avoid polluting top
+    Checkbutton(root, text="Preload BC players (fetch Bandcamp pages now)", variable=preload_embeds_var).grid(row=3, column=0, columnspan=2, padx=8, sticky="w")
+
 
     # Status box
     status_box = ScrolledText(root, width=100, height=12, state="disabled")
@@ -140,6 +179,12 @@ def main():
         # marshal to UI thread
         root.after(0, append_log, msg)
 
+    # Persist settings whenever inputs change
+    for var in (start_date_var, end_date_var):
+        var.trace_add("write", save_current_settings)
+    for var in (max_results_var, preload_embeds_var):
+        var.trace_add("write", save_current_settings)
+
     def on_run():
         nonlocal proxy_thread, proxy_port
         try:
@@ -159,8 +204,7 @@ def main():
             return
 
         should_preload = bool(preload_embeds_var.get())
-
-        if (not should_preload) and (proxy_thread is None or not proxy_thread.is_alive()):
+        if proxy_thread is None or not proxy_thread.is_alive():
             proxy_thread, proxy_port = start_proxy_thread()
 
         def worker():
@@ -190,12 +234,10 @@ def main():
             threading.Thread(target=worker, daemon=True).start()
         else:
             worker()
-
-    from tkinter import Checkbutton  # localized import to avoid polluting top
-    Checkbutton(root, text="Preload BC players (fetch Bandcamp pages now)", variable=preload_embeds_var).grid(row=3, column=0, columnspan=2, padx=8, sticky="w")
-
+            
     Button(root, text="Run", command=on_run).grid(row=4, column=0, columnspan=3, pady=12)
 
+    from tkinter import Checkbutton  # localized import to avoid polluting top
     root.mainloop()
 
 
