@@ -107,7 +107,7 @@ def main():
     proxy_port = PROXY_PORT
 
     # Status box
-    status_box = ScrolledText(root, width=60, height=12, state="disabled")
+    status_box = ScrolledText(root, width=100, height=12, state="disabled")
     status_box.grid(row=4, column=0, columnspan=3, padx=8, pady=8, sticky="nsew")
 
     class GuiLogger:
