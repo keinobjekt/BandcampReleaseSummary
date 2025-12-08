@@ -109,13 +109,16 @@ def get_messages(service, ids, format, batch_size):
                     raise Exception(err_msg)
             email = get_html_from_message(email_data)
 
-            # Extract Date header if available
+            # Extract headers if available
             headers = email_data.get("payload", {}).get("headers", [])
             date_header = None
+            subject_header = None
             for h in headers:
-                if h.get("name", "").lower() == "date":
+                name = h.get("name", "").lower()
+                if name == "date":
                     date_header = h.get("value")
-                    break
+                if name == "subject":
+                    subject_header = h.get("value")
             parsed_date = None
             if date_header:
                 try:
@@ -123,7 +126,7 @@ def get_messages(service, ids, format, batch_size):
                 except Exception:
                     parsed_date = date_header
 
-            emails[str(idx)] = {"html": email, "date": parsed_date}
+            emails[str(idx)] = {"html": email, "date": parsed_date, "subject": subject_header}
             idx += 1
 
     return emails
@@ -132,7 +135,7 @@ def get_messages(service, ids, format, batch_size):
 
 # ------------------------------------------------------------------------ 
 # Scrape Bandcamp URL and light metadata from one email
-def scrape_info_from_email(email_text, date_header=None):
+def scrape_info_from_email(email_text, date_header=None, subject=None):
     date = date_header
     img_url = None
     release_url = None
@@ -146,6 +149,10 @@ def scrape_info_from_email(email_text, date_header=None):
         s = s.decode()
     except:
         s = str(s)
+
+    # Only accept messages whose subject starts with the expected release prefix.
+    if subject and not subject.lower().startswith("new release from"):
+        return None, None, None, None, None, None, None
     
     # release url
     soup = BeautifulSoup(email_text, "html.parser") if email_text else None

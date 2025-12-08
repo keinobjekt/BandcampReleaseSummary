@@ -131,7 +131,7 @@ def construct_release_list(emails):
             html_text = email.get("html")
             date_header = email.get("date")
 
-        date, img_url, release_url, is_track, artist_name, release_title, page_name = scrape_info_from_email(html_text, date_header)
+        date, img_url, release_url, is_track, artist_name, release_title, page_name = scrape_info_from_email(html_text, date_header, email.get("subject"))
         
         if not all(x==None for x in [date, img_url, release_url, is_track, artist_name, release_title, page_name]):                
             releases_unsifted.append(construct_release(date=date,
