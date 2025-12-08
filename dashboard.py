@@ -95,7 +95,13 @@ EMBED_CACHE = load_embed_cache()
 # --------------------------------------------------------------------------- #
 # HTML generation
 
-def _normalize_release(entry: Dict[str, str], fetch_missing_ids: bool, log: Callable[[str], None] | None = None) -> Dict[str, str]:
+def _normalize_release(
+    entry: Dict[str, str],
+    fetch_missing_ids: bool,
+    log: Callable[[str], None] | None = None,
+    progress_index: int | None = None,
+    progress_total: int | None = None,
+) -> Dict[str, str]:
     """
     Map incoming data keys onto a consistent shape used by the dashboard.
     """
@@ -116,7 +122,10 @@ def _normalize_release(entry: Dict[str, str], fetch_missing_ids: bool, log: Call
 
     if release_id is None and fetch_missing_ids:
         if log:
-            log(f"Fetching Bandcamp page for {url}")
+            if progress_index and progress_total:
+                log(f"({progress_index}/{progress_total}) {url}")
+            else:
+                log(f"Fetching Bandcamp page for {url}")
         meta = fetch_embed_metadata(url)
         release_id = meta["release_id"]
         is_track = meta["is_track"]
@@ -160,8 +169,12 @@ def build_release_dashboard_html(
     embed_proxy_url: str | None = None,
 ) -> str:
     """Return a full HTML document for browsing Bandcamp releases."""
+    releases_list = list(releases)
+    total = len(releases_list)
+    log(f'Prefetching Bandcamp players not already in cache...')
     normalized: List[Dict[str, str]] = [
-        _normalize_release(entry, fetch_missing_ids, log) for entry in releases
+        _normalize_release(entry, fetch_missing_ids, log, idx, total)
+        for idx, entry in enumerate(releases_list, start=1)
     ]
     data_json = json.dumps(normalized, ensure_ascii=True)
     return render_dashboard_html(title=title, data_json=data_json, embed_proxy_url=embed_proxy_url)
