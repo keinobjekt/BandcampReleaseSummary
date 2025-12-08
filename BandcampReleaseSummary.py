@@ -8,12 +8,92 @@ from bandcamp import scrape_info_from_bc_page
 from util import construct_release
 from generate import generate_html
 from dashboard import write_release_dashboard
+from session_store import (
+    cached_releases_for_range,
+    collapse_date_ranges,
+    persist_release_metadata,
+)
 
 ## Settings ##
 k_no_download = False
 k_data_dir = "data"
 k_output_path = "output"
 k_embed_proxy_url = "http://localhost:5050/embed-meta"
+
+
+# ------------------------------------------------------------------------ 
+def _parse_date(date_text: str) -> datetime.date:
+    try:
+        return datetime.datetime.strptime(date_text, "%Y/%m/%d").date()
+    except ValueError:
+        raise ValueError("Incorrect data format, should be YYYY/MM/DD")
+
+
+def _daterange(start: datetime.date, end: datetime.date):
+    current = start
+    one_day = datetime.timedelta(days=1)
+    while current <= end:
+        yield current
+        current += one_day
+
+
+# ------------------------------------------------------------------------ 
+# Fetch releases, combining cached metadata with minimal Gmail downloads
+def gather_releases_with_cache(after_date: str, before_date: str, max_results: int, batch_size: int, log=print):
+    """
+    Use cached Gmail-scraped release metadata for previously seen dates.
+    Only hit Gmail for dates in the requested range that have no cache entry.
+    """
+    start_date = _parse_date(after_date)
+    end_date = _parse_date(before_date)
+    if start_date > end_date:
+        raise ValueError("Start date must be on or before end date")
+
+    cached_releases, missing_dates = cached_releases_for_range(start_date, end_date)
+    missing_ranges = collapse_date_ranges(missing_dates)
+    releases = list(cached_releases)
+
+    if missing_ranges:
+        log(f"Using cached releases for {len(releases)} entries; {len(missing_ranges)} missing date span(s) will be fetched from Gmail.")
+    else:
+        log(f"Using cached releases for {len(releases)} entries; no Gmail download needed for this range.")
+
+    remaining = max_results - len(releases)
+    if remaining <= 0:
+        # Respect the user's cap: do not download more if cache already exceeds limit
+        return releases[:max_results]
+
+    service = gmail_authenticate()
+
+    for start_missing, end_missing in missing_ranges:
+        if remaining <= 0:
+            break
+        query_after = start_missing.strftime("%Y/%m/%d")
+        query_before = end_missing.strftime("%Y/%m/%d")
+        search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{query_before} after:{query_after}"
+        log(f"Querying Gmail for {query_after} to {query_before} (remaining cap {remaining})")
+        message_ids = search_messages(service, search_query, max_results=remaining)
+        if not message_ids:
+            log(f"No messages found for {query_after} to {query_before}")
+            continue
+        emails = get_messages(service, [msg["id"] for msg in message_ids], "full", batch_size)
+        new_releases = construct_release_list(emails)
+        releases.extend(new_releases)
+        persist_release_metadata(new_releases, exclude_today=True)
+        remaining = max_results - len(releases)
+
+    # Deduplicate on URL after combining cached + new
+    seen_urls = set()
+    deduped = []
+    for release in releases:
+        url = release.get("url")
+        if url and url in seen_urls:
+            continue
+        if url:
+            seen_urls.add(url)
+        deduped.append(release)
+
+    return deduped[:max_results] if max_results else deduped
 
 
 # ------------------------------------------------------------------------ 
@@ -80,10 +160,7 @@ if __name__ == "__main__":
 
     # Validate args
     def validate(date_text):
-        try:
-            date = datetime.datetime.strptime(date_text, '%Y/%m/%d')
-        except ValueError:
-            raise ValueError("Incorrect data format, should be YYYY/MM/DD")
+        date = _parse_date(date_text)
         if date.year < 2000 or date.year > datetime.datetime.now().year:
             raise ValueError("Year must be between 2000 and today")    
 
@@ -95,34 +172,8 @@ if __name__ == "__main__":
     Path(k_data_dir).mkdir(exist_ok=True)
     Path(output_dir_name).mkdir(exist_ok=True)
 
-    # get the Gmail API service
-    service = gmail_authenticate()
-
-    # Search inbox
-    search_query = f"from:noreply@bandcamp.com subject:'New release from' before:{before_date} after:{after_date}"
-    message_ids = search_messages(service, search_query, max_results=max_results)
-    
-    # Get messages    
-    email_data_file = f'email_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
-    if k_no_download:
-        with open(f"{k_data_dir}/{email_data_file}", "rb") as a_file:
-            emails = pickle.load(a_file)
-    else:
-        emails = get_messages(service, [msg['id'] for msg in message_ids], 'full', batch_size)
-
-        with open(f"{k_data_dir}/{email_data_file}", "wb+") as a_file:
-            pickle.dump(emails, a_file)
-    
-    # Compile list of releases
-    release_info_file = f'release_data_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}.pkl'
-    if k_no_download:
-        print ('Opening saved release list...')
-        with open(f"{k_data_dir}/{release_info_file}", "rb") as a_file:
-            releases = pickle.load(a_file)
-    else:
-        releases = construct_release_list(emails)
-        with open(f"{k_data_dir}/{release_info_file}", "wb+") as a_file:
-            pickle.dump(releases, a_file)
+    # Fetch releases with cache awareness
+    releases = gather_releases_with_cache(after_date, before_date, max_results, batch_size)
     
     # Generate HTML pages
     write_release_dashboard(releases=releases, 
