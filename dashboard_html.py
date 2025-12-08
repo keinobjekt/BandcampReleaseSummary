@@ -276,6 +276,34 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       color: var(--muted);
       font-size: 13px;
     }}
+    .settings-backdrop {{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }}
+    .settings-panel {{
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      min-width: 280px;
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 12px;
+    }}
+    .settings-panel h2 {{
+      margin: 0;
+      font-size: 16px;
+    }}
+    .settings-row {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
     .embed-wrapper {{
       width: 100%;
       max-width: 550px;
@@ -317,8 +345,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             <div class="detail-meta" id="date-range"></div>
           </div>
           <div style="display:flex; gap:8px;">
-            <button id="theme-toggle" class="button">Light mode</button>
-            <button id="stop-all" class="button">Reset players</button>
+            <button id="settings-btn" class="button">Settings</button>
           </div>
         </div>
       </header>
@@ -339,6 +366,31 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       </div>
     </main>
   </div>
+  <div id="settings-backdrop" class="settings-backdrop">
+    <div class="settings-panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <h2>Settings</h2>
+        <button id="settings-close" class="button">Close</button>
+      </div>
+      <div class="settings-row" style="padding-left:4px; color: var(--muted); font-size: 13px;">
+        Clear cache:
+      </div>
+      <div class="settings-row" style="padding-left:12px;">
+        <input type="checkbox" id="reset-clear-cache" checked />
+        <label for="reset-clear-cache">Clear cache</label>
+      </div>
+      <div class="settings-row" style="padding-left:12px;">
+        <input type="checkbox" id="reset-clear-viewed" checked />
+        <label for="reset-clear-viewed">Clear read/unread state</label>
+      </div>
+      <button id="settings-reset" class="button">Reset</button>
+      <div style="height:8px;"></div>
+      <div class="settings-row">
+        <input type="checkbox" id="theme-toggle" />
+        <label for="theme-toggle">Dark mode</label>
+      </div>
+    </div>
+  </div>
   <script id="release-data" type="application/json">{data_json}</script>
   <script>
     const EMBED_PROXY_URL = {proxy_literal};
@@ -346,6 +398,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
   <script>
     const releases = JSON.parse(document.getElementById("release-data").textContent);
     const VIEWED_KEY = "bc_viewed_releases_v1";
+    const API_ROOT = EMBED_PROXY_URL ? EMBED_PROXY_URL.replace(/\/embed-meta.*$/, "") : null;
     function releaseKey(release) {{
       return release.url || [release.page_name, release.artist, release.title, release.date].filter(Boolean).join("|");
     }}
@@ -373,6 +426,19 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       el.textContent = `Date range: ${{fmt(first)}} to ${{fmt(last)}}`;
     }}
     async function loadViewedSet() {{
+      if (API_ROOT) {{
+        try {{
+          const resp = await fetch(`${{API_ROOT}}/viewed-state`);
+          if (resp.ok) {{
+            const data = await resp.json();
+            if (data && Array.isArray(data.viewed)) {{
+              return new Set(data.viewed);
+            }}
+          }}
+        }} catch (err) {{
+          console.warn("Failed to load viewed state from API; falling back to localStorage", err);
+        }}
+      }}
       try {{
         const raw = localStorage.getItem(VIEWED_KEY);
         if (!raw) return new Set();
@@ -382,10 +448,22 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         return new Set();
       }}
     }}
-    function persistViewed(set) {{
+    function persistViewedLocal(set) {{
       try {{
         localStorage.setItem(VIEWED_KEY, JSON.stringify(Array.from(set)));
       }} catch (err) {{}}
+    }}
+    async function persistViewedRemote(url, isRead) {{
+      if (!API_ROOT || !url) return;
+      try {{
+        await fetch(`${{API_ROOT}}/viewed-state`, {{
+          method: "POST",
+          headers: {{"Content-Type": "application/json"}},
+          body: JSON.stringify({{url, read: isRead}}),
+        }});
+      }} catch (err) {{
+        console.warn("Failed to persist viewed state to API", err);
+      }}
     }}
     function setViewed(release, isRead) {{
       const key = releaseKey(release);
@@ -395,7 +473,8 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       }} else {{
         state.viewed.delete(key);
       }}
-      persistViewed(state.viewed);
+      persistViewedLocal(state.viewed);
+      persistViewedRemote(release.url || key, isRead);
     }}
     const state = {{
       sortKey: "date",
@@ -410,15 +489,16 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       const isLight = theme === "light";
       document.body.classList.toggle("theme-light", isLight);
       if (themeToggleBtn) {{
-        themeToggleBtn.textContent = isLight ? "Dark mode" : "Light mode";
+        themeToggleBtn.checked = !isLight;
       }}
       localStorage.setItem(THEME_KEY, isLight ? "light" : "dark");
     }}
     const savedTheme = localStorage.getItem(THEME_KEY) || "light";
     applyTheme(savedTheme);
     if (themeToggleBtn) {{
-      themeToggleBtn.addEventListener("click", () => {{
-        const next = document.body.classList.contains("theme-light") ? "dark" : "light";
+      themeToggleBtn.checked = savedTheme !== "light";
+      themeToggleBtn.addEventListener("change", () => {{
+        const next = themeToggleBtn.checked ? "dark" : "light";
         applyTheme(next);
       }});
     }}
@@ -613,17 +693,6 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         node.remove();
       }});
       document.querySelectorAll("tr.data-row").forEach(row => row.classList.remove("expanded"));
-    }}
-
-    function stopAllPlayers() {{
-      document.querySelectorAll("[data-embed-target]").forEach(target => {{
-        const iframe = target.querySelector("iframe");
-        if (iframe) {{
-          iframe.remove();
-          target.innerHTML = '<div class="detail-meta">Player stopped. Expand to reload.</div>';
-        }}
-      }});
-      closeOpenDetailRows();
     }}
 
     function attachRowActions(row, release) {{
@@ -835,13 +904,58 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
 
     renderFilters();
     attachHeaderSorting();
-    const stopAllBtn = document.getElementById("stop-all");
-    if (stopAllBtn) {{
-      stopAllBtn.addEventListener("click", evt => {{
-        evt.stopPropagation();
-        stopAllPlayers();
-      }});
+    const settingsBackdrop = document.getElementById("settings-backdrop");
+    const settingsBtn = document.getElementById("settings-btn");
+    const settingsClose = document.getElementById("settings-close");
+    const settingsReset = document.getElementById("settings-reset");
+    const resetClearCache = document.getElementById("reset-clear-cache");
+    const resetClearViewed = document.getElementById("reset-clear-viewed");
+
+    function toggleSettings(open) {{
+      if (!settingsBackdrop) return;
+      settingsBackdrop.style.display = open ? "flex" : "none";
     }}
+    if (settingsBtn) settingsBtn.addEventListener("click", () => toggleSettings(true));
+    if (settingsClose) settingsClose.addEventListener("click", () => toggleSettings(false));
+    if (settingsBackdrop) settingsBackdrop.addEventListener("click", (e) => {{
+      if (e.target === settingsBackdrop) toggleSettings(false);
+    }});
+
+    async function performReset() {{
+      const clearCache = resetClearCache ? !!resetClearCache.checked : false;
+      const clearViewed = resetClearViewed ? !!resetClearViewed.checked : false;
+      if (!clearCache && !clearViewed) {{
+        toggleSettings(false);
+        return;
+      }}
+      let hadError = false;
+      if (API_ROOT) {{
+        try {{
+          const resp = await fetch(`${{API_ROOT}}/reset-caches`, {{
+            method: "POST",
+            headers: {{"Content-Type": "application/json"}},
+            body: JSON.stringify({{clear_cache: clearCache, clear_viewed: clearViewed}}),
+          }});
+          if (!resp.ok) throw new Error(`HTTP ${{resp.status}}`);
+        }} catch (err) {{
+          console.warn("Failed to reset via API", err);
+          hadError = true;
+        }}
+      }} else {{
+        hadError = true; // cannot clear disk cache without API
+      }}
+      if (clearViewed) {{
+        state.viewed = new Set();
+        persistViewedLocal(state.viewed);
+        renderTable();
+      }}
+      toggleSettings(false);
+      if (hadError && clearCache) {{
+        alert("Could not clear disk cache (proxy not reachable). Run the app/proxy and try again.");
+      }}
+    }}
+    if (settingsReset) settingsReset.addEventListener("click", performReset);
+
     // Render after viewed state loads to keep persisted read dots and show date range
     loadViewedSet().then(set => {{
       state.viewed = set;
