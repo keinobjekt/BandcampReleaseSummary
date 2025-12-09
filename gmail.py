@@ -1,9 +1,11 @@
 import pickle
 import os
+import sys
 import base64
 import json
 import quopri
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from furl import furl
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -11,9 +13,29 @@ from google.auth.transport.requests import Request
 from bs4 import BeautifulSoup
 import re
 
+from util import get_data_dir
+
 # ------------------------------------------------------------------------ 
 
 k_gmail_credentials_file = "credentials.json"
+
+
+def _find_credentials_file() -> Path | None:
+    """
+    Look for credentials.json in writable data dir, bundled resources, or CWD.
+    """
+    data_dir = get_data_dir()
+    candidates = [
+        data_dir / k_gmail_credentials_file,
+    ]
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        candidates.append(Path(bundle_root) / k_gmail_credentials_file)
+    candidates.append(Path.cwd() / k_gmail_credentials_file)
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
 
 
 # ------------------------------------------------------------------------ 
@@ -56,20 +78,27 @@ def gmail_authenticate():
     SCOPES = ['https://mail.google.com/'] # Request all access (permission to read/send/receive emails, manage the inbox, and more)
 
     creds = None
+    data_dir = get_data_dir()
+    token_path = data_dir / "token.pickle"
+
     # the file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first time
-    if os.path.exists("token.pickle"):
-        with open("token.pickle", "rb") as token:
+    if token_path.exists():
+        with open(token_path, "rb") as token:
             creds = pickle.load(token)
     # if there are no (valid) credentials availablle, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(k_gmail_credentials_file, SCOPES)
+            cred_file = _find_credentials_file()
+            if not cred_file:
+                raise FileNotFoundError(f"Could not find {k_gmail_credentials_file}. Place it in {data_dir} or alongside the app.")
+            flow = InstalledAppFlow.from_client_secrets_file(str(cred_file), SCOPES)
             creds = flow.run_local_server(port=0)
         # save the credentials for the next run
-        with open("token.pickle", "wb") as token:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        with open(token_path, "wb") as token:
             pickle.dump(creds, token)
     return build('gmail', 'v1', credentials=creds)
 
