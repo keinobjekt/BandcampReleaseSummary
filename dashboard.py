@@ -170,6 +170,10 @@ def build_release_dashboard_html(
     default_theme: str | None = None,
 ) -> str:
     """Return a full HTML document for browsing Bandcamp releases."""
+    # Reload embed cache each build so embeds fetched in prior sessions (e.g., via
+    # browser expansion hitting the proxy) are reflected in the badges/URLs.
+    EMBED_CACHE.clear()
+    EMBED_CACHE.update(load_embed_cache())
     releases_list = list(releases)
     total = len(releases_list)
     log(f'Prefetching Bandcamp players not already in cache...')

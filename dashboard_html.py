@@ -1028,6 +1028,14 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         persistViewedLocal(state.viewed);
         renderTable();
       }}
+      if (clearCache) {{
+        releases.forEach(r => {{
+          delete r.embed_url;
+          delete r.release_id;
+          delete r.is_track;
+        }});
+        renderTable();
+      }}
       toggleSettings(false);
       if (hadError && clearCache) {{
         alert("Could not clear disk cache (proxy not reachable). Run the app/proxy and try again.");
