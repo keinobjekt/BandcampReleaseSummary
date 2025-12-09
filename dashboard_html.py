@@ -434,6 +434,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         <input type="checkbox" id="theme-toggle" />
         <label for="theme-toggle">Dark mode</label>
       </div>
+      <div class="settings-row">
+        <input type="checkbox" id="show-cached-toggle" checked />
+        <label for="show-cached-toggle">Show cached badges</label>
+      </div>
     </div>
   </div>
   <script id="release-data" type="application/json">{data_json}</script>
@@ -536,6 +540,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       dateFilterEnabled: false,
       dateFilterFrom: "",
       dateFilterTo: "",
+      showCachedBadges: true,
     }};
     const THEME_KEY = "bc_dashboard_theme";
     const themeToggleBtn = document.getElementById("theme-toggle");
@@ -822,7 +827,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           <td style="width:24px;"><span class="row-dot"></span></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.page_name || "Unknown"}}</a></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.artist || "—"}}</a></td>
-          <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a>${{release.embed_url ? ' <span class="cached-badge">cached</span>' : ''}}</td>
+          <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a>${{state.showCachedBadges && release.embed_url ? ' <span class="cached-badge">cached</span>' : ''}}</td>
           <td>${{formatDate(release.date)}}</td>
         `;
         const existingRead = state.viewed.has(releaseKey(release));
@@ -875,7 +880,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             const height = release.is_track ? 320 : 480;
             embedTarget.innerHTML = `<iframe title="Bandcamp player" style="border:0; width:100%; height:${{height}}px;" src="${{embedUrl}}" seamless></iframe>`;
             const titleCell = tr.children[3];
-            if (titleCell && embedUrl && !titleCell.querySelector(".cached-badge")) {{
+            if (titleCell && embedUrl && state.showCachedBadges && !titleCell.querySelector(".cached-badge")) {{
               titleCell.insertAdjacentHTML("beforeend", ' <span class="cached-badge">cached</span>');
             }}
           }});
@@ -1002,6 +1007,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     const dateFilterToggle = document.getElementById("date-filter-toggle");
     const dateFilterFrom = document.getElementById("date-filter-from");
     const dateFilterTo = document.getElementById("date-filter-to");
+    const showCachedToggle = document.getElementById("show-cached-toggle");
 
     function toggleSettings(open) {{
       if (!settingsBackdrop) return;
@@ -1093,6 +1099,14 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     }}
     if (markSeenBtn) markSeenBtn.addEventListener("click", () => markVisibleRows(true));
     if (markUnseenBtn) markUnseenBtn.addEventListener("click", () => markVisibleRows(false));
+
+    if (showCachedToggle) {{
+      showCachedToggle.checked = state.showCachedBadges;
+      showCachedToggle.addEventListener("change", () => {{
+        state.showCachedBadges = !!showCachedToggle.checked;
+        renderTable();
+      }});
+    }}
 
     function onDateFilterChange() {{
       state.dateFilterEnabled = !!(dateFilterToggle && dateFilterToggle.checked);
