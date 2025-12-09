@@ -114,6 +114,22 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     .row-dot.read {{
       opacity: 0;
     }}
+    .cached-badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(82, 208, 255, 0.14);
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-left: 6px;
+      border: 1px solid rgba(82, 208, 255, 0.25);
+      white-space: nowrap;
+    }}
     .header-bar {{
       display: flex;
       align-items: center;
@@ -364,8 +380,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           <div style="display:flex; gap:8px;">
             <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
               <input type="checkbox" id="hide-viewed-toggle" />
-              <span>Hide already viewed releases</span>
+              <span>Hide already seen releases</span>
             </label>
+            <button id="mark-seen" class="button" style="padding:6px 10px; font-size:12px;">Mark all as seen</button>
+            <button id="mark-unseen" class="button" style="padding:6px 10px; font-size:12px;">Mark all as unseen</button>
             <button id="settings-btn" class="button">Settings</button>
           </div>
         </div>
@@ -418,6 +436,8 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
   </script>
   <script>
     const releases = JSON.parse(document.getElementById("release-data").textContent);
+    const releaseMap = new Map();
+    releases.forEach(r => releaseMap.set(releaseKey(r), r));
     const VIEWED_KEY = "bc_viewed_releases_v1";
     const API_ROOT = EMBED_PROXY_URL ? EMBED_PROXY_URL.replace(/\/embed-meta.*$/, "") : null;
     const DEFAULT_THEME = {json.dumps(default_theme or "light")};
@@ -789,10 +809,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       sorted.forEach(release => {{
         const tr = document.createElement("tr");
         tr.className = "data-row";
+        tr.dataset.key = releaseKey(release);
         tr.dataset.page = release.page_name || "";
         tr.tabIndex = 0;
         tr.innerHTML = `
-          <td style="width:16px;"><span class="row-dot"></span></td>
+          <td style="width:52px; white-space:nowrap;"><span class="row-dot"></span>${{release.embed_url ? '<span class="cached-badge">cached</span>' : ''}}</td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.page_name || "Unknown"}}</a></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.artist || "—"}}</a></td>
           <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a></td>
@@ -802,15 +823,16 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         const initialDot = tr.querySelector(".row-dot");
         if (initialDot) initialDot.classList.toggle("read", existingRead);
 
-        tr.addEventListener("click", () => {{
-          tr.focus();
-          const existingDetail = tr.nextElementSibling;
-          const hasDetail = existingDetail && existingDetail.classList.contains("detail-row");
-          const wasVisible = hasDetail && existingDetail.style.display !== "none";
+          tr.addEventListener("click", () => {{
+            tr.focus();
+            const existingDetail = tr.nextElementSibling;
+            const hasDetail = existingDetail && existingDetail.classList.contains("detail-row");
+            const wasVisible = hasDetail && existingDetail.style.display !== "none";
 
           // If already visible, toggle closed.
           if (wasVisible) {{
             closeOpenDetailRows();
+            state.expandedKey = null;
             return;
           }}
 
@@ -827,6 +849,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             detail.style.display = "";
           }}
           tr.classList.add("expanded");
+          state.expandedKey = releaseKey(release);
 
           const embedTarget = detail.querySelector("[data-embed-target]");
           const dot = tr.querySelector(".row-dot");
@@ -839,6 +862,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
               }}
             const height = release.is_track ? 320 : 480;
             embedTarget.innerHTML = `<iframe title="Bandcamp player" style="border:0; width:100%; height:${{height}}px;" src="${{embedUrl}}" seamless></iframe>`;
+            const badgeCell = tr.querySelector("td:first-child");
+            if (badgeCell && embedUrl && !badgeCell.querySelector(".cached-badge")) {{
+              badgeCell.insertAdjacentHTML("beforeend", '<span class="cached-badge">cached</span>');
+            }}
           }});
         }});
 
@@ -957,6 +984,8 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     const resetClearCache = document.getElementById("reset-clear-cache");
     const resetClearViewed = document.getElementById("reset-clear-viewed");
     const hideViewedToggle = document.getElementById("hide-viewed-toggle");
+    const markSeenBtn = document.getElementById("mark-seen");
+    const markUnseenBtn = document.getElementById("mark-unseen");
     const dateFilterToggle = document.getElementById("date-filter-toggle");
     const dateFilterFrom = document.getElementById("date-filter-from");
     const dateFilterTo = document.getElementById("date-filter-to");
@@ -1022,6 +1051,27 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     if (hideViewedToggle) {{
       hideViewedToggle.addEventListener("change", () => applyHideViewed(hideViewedToggle.checked));
     }}
+
+    function markVisibleRows(seen) {{
+      const rows = Array.from(document.querySelectorAll("#release-rows tr.data-row"));
+      rows.forEach(row => {{
+        const key = row.dataset.key;
+        const release = key ? releaseMap.get(key) : null;
+        if (!release) return;
+        setViewed(release, seen);
+        const dot = row.querySelector(".row-dot");
+        if (dot) {{
+          dot.classList.toggle("read", seen);
+        }}
+      }});
+      if (state.hideViewed) {{
+        state.hideViewedSnapshot = new Set(state.viewed);
+      }}
+      renderTable();
+    }}
+    if (markSeenBtn) markSeenBtn.addEventListener("click", () => markVisibleRows(true));
+    if (markUnseenBtn) markUnseenBtn.addEventListener("click", () => markVisibleRows(false));
+
     function onDateFilterChange() {{
       state.dateFilterEnabled = !!(dateFilterToggle && dateFilterToggle.checked);
       state.dateFilterFrom = (dateFilterFrom?.value || "").trim();

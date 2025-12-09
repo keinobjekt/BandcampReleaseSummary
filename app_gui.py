@@ -116,7 +116,7 @@ def main():
 
     start_date_var = StringVar(value=settings.get("start_date") or two_months_ago.strftime("%Y/%m/%d"))
     end_date_var = StringVar(value=settings.get("end_date") or today.strftime("%Y/%m/%d"))
-    max_results_var = IntVar(value=_coerce_max(settings.get("max_results"), 500))
+    max_results_var = StringVar(value=str(_coerce_max(settings.get("max_results"), 500)))
     preload_embeds_var = IntVar(value=1 if settings.get("preload_embeds") else 0)
 
     # Custom layout for date rows to fit compact buttons around the entry
@@ -257,11 +257,15 @@ def main():
     proxy_thread = None
     proxy_port = PROXY_PORT
     def save_current_settings(*_args):
+        try:
+            max_val = int(max_results_var.get())
+        except Exception:
+            max_val = None
         save_settings(
             {
                 "start_date": start_date_var.get(),
                 "end_date": end_date_var.get(),
-                "max_results": max_results_var.get(),
+                "max_results": max_val if max_val is not None else "",
                 "preload_embeds": bool(preload_embeds_var.get()),
             }
         )

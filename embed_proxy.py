@@ -21,6 +21,51 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+VIEWED_PATH = DATA_DIR / "viewed_state.json"
+RELEASE_CACHE_PATH = DATA_DIR / "release_cache.json"
+EMPTY_DATES_PATH = DATA_DIR / "no_results_dates.json"
+EMBED_CACHE_PATH = DATA_DIR / "embed_cache.json"
+
+
+def _load_embed_cache() -> dict:
+    if not EMBED_CACHE_PATH.exists():
+        return {}
+    try:
+        return json.loads(EMBED_CACHE_PATH.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
+def _save_embed_cache(cache: dict) -> None:
+    EMBED_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = EMBED_CACHE_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    tmp.replace(EMBED_CACHE_PATH)
+
+
+def _persist_embed_meta(url: str, *, release_id=None, is_track=None, embed_url=None) -> None:
+    if not url:
+        return
+    cache = _load_embed_cache()
+    existing = cache.get(url, {}) if isinstance(cache, dict) else {}
+    merged = {
+        "release_id": existing.get("release_id"),
+        "is_track": existing.get("is_track"),
+        "embed_url": existing.get("embed_url"),
+    }
+    if release_id is not None:
+        merged["release_id"] = release_id
+    if is_track is not None:
+        merged["is_track"] = is_track
+    if embed_url is not None:
+        merged["embed_url"] = embed_url
+    cache[url] = merged
+    _save_embed_cache(cache)
+
+
 def _load_viewed() -> set[str]:
     if not VIEWED_PATH.exists():
         return set()
@@ -33,6 +78,7 @@ def _load_viewed() -> set[str]:
 
 def _save_viewed(items: set[str]) -> None:
     tmp = VIEWED_PATH.with_suffix(".tmp")
+    tmp.parent.mkdir(parents=True, exist_ok=True)
     tmp.write_text(json.dumps(sorted(items)), encoding="utf-8")
     tmp.replace(VIEWED_PATH)
 
@@ -42,13 +88,6 @@ def _corsify(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return response
-
-DATA_DIR = Path("data")
-DATA_DIR.mkdir(exist_ok=True)
-VIEWED_PATH = DATA_DIR / "viewed_state.json"
-RELEASE_CACHE_PATH = DATA_DIR / "release_cache.json"
-EMPTY_DATES_PATH = DATA_DIR / "no_results_dates.json"
-EMBED_CACHE_PATH = DATA_DIR / "embed_cache.json"
 
 
 def extract_bc_meta(html_text: str) -> Optional[dict]:
@@ -117,6 +156,9 @@ def embed_meta():
     item_id = data.get("item_id")
     is_track = data.get("item_type") == "track"
     embed_url = build_embed_url(item_id, is_track)
+
+    # Persist embed metadata for future sessions.
+    _persist_embed_meta(release_url, release_id=item_id, is_track=is_track, embed_url=embed_url)
 
     response = jsonify(
         {"release_id": item_id, "is_track": is_track, "embed_url": embed_url}
