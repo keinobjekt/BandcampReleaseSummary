@@ -34,6 +34,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
       --radius: 10px;
       --row-bg: #181b22;
+      --row-unseen-bg: #1f2430;
     }}
     .theme-light {{
       --bg: #f5f7fb;
@@ -45,6 +46,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       --border: #d9e2ef;
       --shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
       --row-bg: #f6f7fb;
+      --row-unseen-bg: #e8ecf4;
     }}
     * {{ box-sizing: border-box; }}
     body {{
@@ -248,11 +250,14 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       transition: background 0.15s ease;
       background: var(--row-bg);
     }}
+    tr.data-row.unseen {{
+      background: var(--row-unseen-bg);
+    }}
     tr.data-row:hover {{
       background: rgba(82, 208, 255, 0.02);
     }}
     tr.expanded {{
-      background: rgba(82, 208, 255, 0.08);
+      background: var(--row-bg);
     }}
     .pill {{
       padding: 6px 10px;
@@ -822,12 +827,13 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         const existingRead = state.viewed.has(releaseKey(release));
         const initialDot = tr.querySelector(".row-dot");
         if (initialDot) initialDot.classList.toggle("read", existingRead);
+        tr.classList.toggle("unseen", !existingRead);
 
-          tr.addEventListener("click", () => {{
-            tr.focus();
-            const existingDetail = tr.nextElementSibling;
-            const hasDetail = existingDetail && existingDetail.classList.contains("detail-row");
-            const wasVisible = hasDetail && existingDetail.style.display !== "none";
+        tr.addEventListener("click", () => {{
+          tr.focus();
+          const existingDetail = tr.nextElementSibling;
+          const hasDetail = existingDetail && existingDetail.classList.contains("detail-row");
+          const wasVisible = hasDetail && existingDetail.style.display !== "none";
 
           // If already visible, toggle closed.
           if (wasVisible) {{
@@ -854,6 +860,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
           const embedTarget = detail.querySelector("[data-embed-target]");
           const dot = tr.querySelector(".row-dot");
           if (dot) dot.classList.add("read");
+          tr.classList.remove("unseen");
+          const cachedUrl = releaseKey(release);
+          if (cachedUrl) {{
+            state.viewed.add(cachedUrl);
+          }}
           setViewed(release, true);
           ensureEmbed(release).then(embedUrl => {{
               if (!embedUrl) {{
@@ -919,6 +930,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             if (dot) {{
               const willBeRead = !dot.classList.contains("read");
               dot.classList.toggle("read");
+              tr.classList.toggle("unseen", !willBeRead);
               setViewed(release, willBeRead);
             }}
           }});
@@ -1071,6 +1083,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         if (dot) {{
           dot.classList.toggle("read", seen);
         }}
+        row.classList.toggle("unseen", !seen);
       }});
       if (state.hideViewed) {{
         state.hideViewedSnapshot = new Set(state.viewed);
