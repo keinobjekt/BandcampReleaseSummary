@@ -84,14 +84,12 @@ def pick_date(title: str, initial: datetime.date) -> str:
 
 
 def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port: int, preload_embeds: bool, *, log=print):
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    output_dir_name = OUTPUT_DIR / f'bandcamp_listings_{after_date.replace("/","-")}_to_{before_date.replace("/","-")}_max_{max_results}'
-    output_dir_name.mkdir(exist_ok=True)
+    output_path = Path("output.html")
 
     releases = gather_releases_with_cache(after_date, before_date, max_results, batch_size=20, log=log)
     output_file = write_release_dashboard(
         releases=releases,
-        output_path=output_dir_name / "output.html",
+        output_path=output_path,
         title="Bandcamp Release Dashboard",
         fetch_missing_ids=preload_embeds,
         embed_proxy_url=f"http://localhost:{proxy_port}/embed-meta",
