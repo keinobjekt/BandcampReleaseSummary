@@ -175,6 +175,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       border: none;
       border-radius: 0;
       line-height: 1.05;
+      font-size: 13px;
     }}
     .filter-checkbox {{
       width: 16px;
@@ -397,11 +398,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         <table aria-label="Bandcamp releases">
           <thead>
             <tr>
-              <th style="width:16px;"></th>
-              <th data-sort="page_name">Label/Page <span class="sort-indicator"></span></th>
-              <th data-sort="artist">Artist <span class="sort-indicator"></span></th>
-              <th data-sort="title">Title <span class="sort-indicator"></span></th>
-              <th data-sort="date" style="width:130px;">Date <span class="sort-indicator"></span></th>
+              <th style="width:24px;"></th>
+              <th data-sort="page_name" style="min-width:100px; max-width:180px;">Label/Page <span class="sort-indicator"></span></th>
+              <th data-sort="artist" style="min-width:120px; max-width:180px;">Artist <span class="sort-indicator"></span></th>
+              <th data-sort="title" style="min-width:280px; max-width:560px;">Title <span class="sort-indicator"></span></th>
+              <th data-sort="date" style="width:120px; min-width:120px; max-width:120px;">Date <span class="sort-indicator"></span></th>
             </tr>
           </thead>
           <tbody id="release-rows"></tbody>
@@ -818,10 +819,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         tr.dataset.page = release.page_name || "";
         tr.tabIndex = 0;
         tr.innerHTML = `
-          <td style="width:52px; white-space:nowrap;"><span class="row-dot"></span>${{release.embed_url ? '<span class="cached-badge">cached</span>' : ''}}</td>
+          <td style="width:24px;"><span class="row-dot"></span></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.page_name || "Unknown"}}</a></td>
           <td><a class="link" href="${{pageUrlFor(release)}}" target="_blank" rel="noopener">${{release.artist || "—"}}</a></td>
-          <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a></td>
+          <td><a class="link" href="${{release.url || "#"}}" target="_blank" rel="noopener">${{release.title || "—"}}</a>${{release.embed_url ? ' <span class="cached-badge">cached</span>' : ''}}</td>
           <td>${{formatDate(release.date)}}</td>
         `;
         const existingRead = state.viewed.has(releaseKey(release));
@@ -873,9 +874,9 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
               }}
             const height = release.is_track ? 320 : 480;
             embedTarget.innerHTML = `<iframe title="Bandcamp player" style="border:0; width:100%; height:${{height}}px;" src="${{embedUrl}}" seamless></iframe>`;
-            const badgeCell = tr.querySelector("td:first-child");
-            if (badgeCell && embedUrl && !badgeCell.querySelector(".cached-badge")) {{
-              badgeCell.insertAdjacentHTML("beforeend", '<span class="cached-badge">cached</span>');
+            const titleCell = tr.children[3];
+            if (titleCell && embedUrl && !titleCell.querySelector(".cached-badge")) {{
+              titleCell.insertAdjacentHTML("beforeend", ' <span class="cached-badge">cached</span>');
             }}
           }});
         }});
