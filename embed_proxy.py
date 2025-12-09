@@ -12,12 +12,14 @@ from __future__ import annotations
 import ast
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Optional
 
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
+from werkzeug.serving import make_server
 
 app = Flask(__name__)
 
@@ -92,6 +94,14 @@ def _corsify(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return response
+
+
+def start_proxy_server(port: int = 5050):
+    """Start the proxy in a background thread and return (server, thread)."""
+    server = make_server("0.0.0.0", port, app)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
 
 
 def extract_bc_meta(html_text: str) -> Optional[dict]:

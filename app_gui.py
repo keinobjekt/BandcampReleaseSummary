@@ -17,7 +17,7 @@ from tkinter.scrolledtext import ScrolledText
 
 from tkcalendar import Calendar
 
-from embed_proxy import app as proxy_app
+from embed_proxy import app as proxy_app, start_proxy_server
 from pipeline import gather_releases_with_cache
 from dashboard import write_release_dashboard
 
@@ -55,13 +55,9 @@ def save_settings(settings: dict):
 
 
 def start_proxy_thread():
-    def _run(port):
-        proxy_app.run(host="0.0.0.0", port=port)
-
     port = find_free_port(PROXY_PORT)
-    t = threading.Thread(target=_run, args=(port,), daemon=True)
-    t.start()
-    return t, port
+    server, thread = start_proxy_server(port)
+    return server, thread, port
 
 
 def pick_date(title: str, initial: datetime.date) -> str:
@@ -254,6 +250,7 @@ def main():
     Entry(max_frame, textvariable=max_results_var, width=12).grid(row=0, column=4, padx=4, pady=2, sticky="w")
 
     proxy_thread = None
+    proxy_server = None
     proxy_port = PROXY_PORT
     def save_current_settings(*_args):
         try:
@@ -332,7 +329,7 @@ def main():
 
         should_preload = bool(preload_embeds_var.get())
         if proxy_thread is None or not proxy_thread.is_alive():
-            proxy_thread, proxy_port = start_proxy_thread()
+            proxy_server, proxy_thread, proxy_port = start_proxy_thread()
 
         def worker():
             try:
@@ -365,6 +362,17 @@ def main():
     Button(root, text="Run", command=on_run).grid(row=4, column=0, columnspan=3, pady=12)
 
     from tkinter import Checkbutton  # localized import to avoid polluting top
+    def on_close():
+        nonlocal proxy_server, proxy_thread
+        try:
+            if proxy_server:
+                proxy_server.shutdown()
+            if proxy_thread and proxy_thread.is_alive():
+                proxy_thread.join(timeout=1)
+        finally:
+            root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()
 
 
