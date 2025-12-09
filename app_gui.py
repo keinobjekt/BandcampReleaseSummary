@@ -18,7 +18,8 @@ from tkinter.scrolledtext import ScrolledText
 from tkcalendar import Calendar
 
 from embed_proxy import app as proxy_app
-from BandcampReleaseSummary import gather_releases_with_cache, write_release_dashboard
+from pipeline import gather_releases_with_cache
+from dashboard import write_release_dashboard
 
 MULTITHREADING = True
 PROXY_PORT = 5050
