@@ -10,4 +10,21 @@ def construct_release(is_track=None, release_url=None, date=None, img_url=None, 
     release['is_track'] = is_track
     return release
 
+
+def get_data_dir():
+    """
+    Return a writable data directory for caches/settings.
+    On macOS, prefer ~/Library/Application Support/BandcampReleaseDashboard.
+    Otherwise, fall back to a hidden folder in the user's home.
+    """
+    from pathlib import Path
+    home = Path.home()
+    app_support = home / "Library" / "Application Support" / "BandcampReleaseDashboard"
+    if app_support.parent.exists():  # likely macOS
+        base = app_support
+    else:
+        base = home / ".bandcamp_release_dashboard"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
         

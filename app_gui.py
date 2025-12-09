@@ -20,10 +20,12 @@ from tkcalendar import Calendar
 from embed_proxy import app as proxy_app, start_proxy_server
 from pipeline import gather_releases_with_cache
 from dashboard import write_release_dashboard
+from util import get_data_dir
 
 MULTITHREADING = True
 PROXY_PORT = 5050
-SETTINGS_PATH = Path("data") / "gui_settings.json"
+DATA_DIR = get_data_dir()
+SETTINGS_PATH = DATA_DIR / "gui_settings.json"
 
 def find_free_port(preferred: int = 5050) -> int:
     import socket
@@ -80,7 +82,7 @@ def pick_date(title: str, initial: datetime.date) -> str:
 
 
 def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port: int, preload_embeds: bool, *, log=print):
-    output_path = Path("output.html")
+    output_path = DATA_DIR / "output.html"
 
     releases = gather_releases_with_cache(after_date, before_date, max_results, batch_size=20, log=log)
     output_file = write_release_dashboard(

@@ -13,11 +13,14 @@ import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Set, Tuple
 
+from util import get_data_dir
+
 CacheType = Dict[str, List[dict]]
 
-CACHE_PATH = Path("data") / "release_cache.json"
-EMPTY_PATH = Path("data") / "no_results_dates.json"
-EMBED_CACHE_PATH = Path("data") / "embed_cache.json"
+DATA_ROOT = get_data_dir()
+CACHE_PATH = DATA_ROOT / "release_cache.json"
+EMPTY_PATH = DATA_ROOT / "no_results_dates.json"
+EMBED_CACHE_PATH = DATA_ROOT / "embed_cache.json"
 
 
 def _ensure_cache_dir() -> None:

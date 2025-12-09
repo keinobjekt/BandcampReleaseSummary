@@ -21,11 +21,11 @@ from bs4 import BeautifulSoup
 from flask import Flask, jsonify, request
 from werkzeug.serving import make_server
 
+from util import get_data_dir
+
 app = Flask(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = get_data_dir()
 VIEWED_PATH = DATA_DIR / "viewed_state.json"
 RELEASE_CACHE_PATH = DATA_DIR / "release_cache.json"
 EMPTY_DATES_PATH = DATA_DIR / "no_results_dates.json"
