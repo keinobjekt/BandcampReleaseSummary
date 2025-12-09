@@ -345,6 +345,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
             <div class="detail-meta" id="date-range"></div>
           </div>
           <div style="display:flex; gap:8px;">
+            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">
+              <input type="checkbox" id="hide-viewed-toggle" />
+              <span>Hide already viewed releases</span>
+            </label>
             <button id="settings-btn" class="button">Settings</button>
           </div>
         </div>
@@ -483,6 +487,8 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       showLabels: new Set(),
       showOnlyLabels: new Set(),
       viewed: new Set(),
+      hideViewed: false,
+      hideViewedSnapshot: new Set(),
     }};
     const THEME_KEY = "bc_dashboard_theme";
     const themeToggleBtn = document.getElementById("theme-toggle");
@@ -735,7 +741,11 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         const activeSet = useShowOnly ? state.showOnlyLabels : state.showLabels;
         if (activeSet.size === 0) return true;
         if (!r.page_name) return true;
-        return activeSet.has(r.page_name);
+        if (!activeSet.has(r.page_name)) return false;
+        if (state.hideViewed && state.hideViewedSnapshot.size > 0) {{
+          return !state.hideViewedSnapshot.has(releaseKey(r));
+        }}
+        return true;
       }});
 
       const sorted = sortData(filtered);
@@ -911,6 +921,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     const settingsReset = document.getElementById("settings-reset");
     const resetClearCache = document.getElementById("reset-clear-cache");
     const resetClearViewed = document.getElementById("reset-clear-viewed");
+    const hideViewedToggle = document.getElementById("hide-viewed-toggle");
 
     function toggleSettings(open) {{
       if (!settingsBackdrop) return;
@@ -956,6 +967,19 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       }}
     }}
     if (settingsReset) settingsReset.addEventListener("click", performReset);
+
+    function applyHideViewed(checked) {{
+      state.hideViewed = checked;
+      if (checked) {{
+        state.hideViewedSnapshot = new Set(state.viewed);
+      }} else {{
+        state.hideViewedSnapshot = new Set();
+      }}
+      renderTable();
+    }}
+    if (hideViewedToggle) {{
+      hideViewedToggle.addEventListener("change", () => applyHideViewed(hideViewedToggle.checked));
+    }}
 
     // Render after viewed state loads to keep persisted read dots and show date range
     loadViewedSet().then(set => {{
