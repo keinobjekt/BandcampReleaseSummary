@@ -334,6 +334,23 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
 <body>
   <div class="layout">
     <aside>
+      <div class="filter-title">Filter by date</div>
+      <div style="margin-bottom: 12px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+          <input type="checkbox" id="date-filter-toggle" />
+          <span>Filter by date range</span>
+        </label>
+        <div style="display:grid; gap:6px; margin-top:6px; padding-left:4px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+            <span style="min-width:38px;">From:</span>
+            <input type="text" id="date-filter-from" placeholder="YYYY-MM-DD" style="width:120px;" />
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+            <span style="min-width:38px;">To:</span>
+            <input type="text" id="date-filter-to" placeholder="YYYY-MM-DD" style="width:120px;" />
+          </label>
+        </div>
+      </div>
       <div class="filter-title">Filter by Label/Page</div>
       <div id="label-filters" class="filter-list"></div>
     </aside>
@@ -489,6 +506,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       viewed: new Set(),
       hideViewed: false,
       hideViewedSnapshot: new Set(),
+      expandedKey: null,
+      dateFilterEnabled: false,
+      dateFilterFrom: "",
+      dateFilterTo: "",
     }};
     const THEME_KEY = "bc_dashboard_theme";
     const themeToggleBtn = document.getElementById("theme-toggle");
@@ -742,8 +763,22 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         if (activeSet.size === 0) return true;
         if (!r.page_name) return true;
         if (!activeSet.has(r.page_name)) return false;
+        if (state.dateFilterEnabled) {{
+          if (state.dateFilterFrom) {{
+            const fromTs = Date.parse(state.dateFilterFrom);
+            const rowTs = Date.parse(r.date);
+            if (!isNaN(fromTs) && !isNaN(rowTs) && rowTs < fromTs) return false;
+          }}
+          if (state.dateFilterTo) {{
+            const toTs = Date.parse(state.dateFilterTo);
+            const rowTs = Date.parse(r.date);
+            if (!isNaN(toTs) && !isNaN(rowTs) && rowTs > toTs) return false;
+          }}
+        }}
         if (state.hideViewed && state.hideViewedSnapshot.size > 0) {{
-          return !state.hideViewedSnapshot.has(releaseKey(r));
+          const key = releaseKey(r);
+          if (state.expandedKey && key === state.expandedKey) return true;
+          return !state.hideViewedSnapshot.has(key);
         }}
         return true;
       }});
@@ -922,6 +957,9 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     const resetClearCache = document.getElementById("reset-clear-cache");
     const resetClearViewed = document.getElementById("reset-clear-viewed");
     const hideViewedToggle = document.getElementById("hide-viewed-toggle");
+    const dateFilterToggle = document.getElementById("date-filter-toggle");
+    const dateFilterFrom = document.getElementById("date-filter-from");
+    const dateFilterTo = document.getElementById("date-filter-to");
 
     function toggleSettings(open) {{
       if (!settingsBackdrop) return;
@@ -969,6 +1007,10 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     if (settingsReset) settingsReset.addEventListener("click", performReset);
 
     function applyHideViewed(checked) {{
+      const expandedRow = document.querySelector("tr.data-row.expanded");
+      if (expandedRow && expandedRow.dataset.key) {{
+        state.expandedKey = expandedRow.dataset.key;
+      }}
       state.hideViewed = checked;
       if (checked) {{
         state.hideViewedSnapshot = new Set(state.viewed);
@@ -980,6 +1022,15 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     if (hideViewedToggle) {{
       hideViewedToggle.addEventListener("change", () => applyHideViewed(hideViewedToggle.checked));
     }}
+    function onDateFilterChange() {{
+      state.dateFilterEnabled = !!(dateFilterToggle && dateFilterToggle.checked);
+      state.dateFilterFrom = (dateFilterFrom?.value || "").trim();
+      state.dateFilterTo = (dateFilterTo?.value || "").trim();
+      renderTable();
+    }}
+    if (dateFilterToggle) dateFilterToggle.addEventListener("change", onDateFilterChange);
+    if (dateFilterFrom) dateFilterFrom.addEventListener("input", onDateFilterChange);
+    if (dateFilterTo) dateFilterTo.addEventListener("input", onDateFilterChange);
 
     // Render after viewed state loads to keep persisted read dots and show date range
     loadViewedSet().then(set => {{
