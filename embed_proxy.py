@@ -80,7 +80,11 @@ def _save_viewed(items: set[str]) -> None:
     tmp = VIEWED_PATH.with_suffix(".tmp")
     tmp.parent.mkdir(parents=True, exist_ok=True)
     tmp.write_text(json.dumps(sorted(items)), encoding="utf-8")
-    tmp.replace(VIEWED_PATH)
+    try:
+        tmp.replace(VIEWED_PATH)
+    except FileNotFoundError:
+        # If the temp file vanished between write and replace, fall back to writing directly.
+        VIEWED_PATH.write_text(json.dumps(sorted(items)), encoding="utf-8")
 
 
 def _corsify(response):

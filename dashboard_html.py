@@ -543,6 +543,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
       showCachedBadges: true,
     }};
     const THEME_KEY = "bc_dashboard_theme";
+    const SHOW_CACHED_KEY = "bc_show_cached_badges";
     const themeToggleBtn = document.getElementById("theme-toggle");
     function applyTheme(theme) {{
       const isLight = theme === "light";
@@ -1101,9 +1102,14 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
     if (markUnseenBtn) markUnseenBtn.addEventListener("click", () => markVisibleRows(false));
 
     if (showCachedToggle) {{
+      const savedShowCached = localStorage.getItem(SHOW_CACHED_KEY);
+      if (savedShowCached !== null) {{
+        state.showCachedBadges = savedShowCached === "true";
+      }}
       showCachedToggle.checked = state.showCachedBadges;
       showCachedToggle.addEventListener("change", () => {{
         state.showCachedBadges = !!showCachedToggle.checked;
+        localStorage.setItem(SHOW_CACHED_KEY, String(state.showCachedBadges));
         renderTable();
       }});
     }}
