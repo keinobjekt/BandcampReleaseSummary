@@ -425,7 +425,7 @@ def render_dashboard_html(*, title: str, data_json: str, embed_proxy_url: str | 
         <label for="reset-clear-cache">Clear cache</label>
       </div>
       <div class="settings-row" style="padding-left:12px;">
-        <input type="checkbox" id="reset-clear-viewed" checked />
+        <input type="checkbox" id="reset-clear-viewed" />
         <label for="reset-clear-viewed">Clear read/unread state</label>
       </div>
       <button id="settings-reset" class="button">Reset</button>
