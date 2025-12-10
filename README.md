@@ -1,4 +1,4 @@
-# 📘 Google Cloud Setup Guide (For Personal Use With This Application)
+### 📘 Setup Guide
 
 This application uses the Gmail API.
 To keep your data private and avoid Google’s OAuth verification requirements, **you must create your own Google Cloud OAuth client**.
@@ -91,20 +91,14 @@ You will import this file into the application.
 
 1. Open this application  
 2. When prompted, select the downloaded `client_secret_XXXX.json` file  
-3. A browser window will open asking you to sign in and approve access  
-4. Click **Allow**  
-5. The app will store your refresh token locally so you will not need to log in again
-
-Because your project was published to **In Production**, your refresh token should remain valid long-term unless:
-
-- You revoke access  
-- You reset your Google password  
-- You delete the OAuth client  
-- You disable the Gmail API  
+3. When you click Run for the first time, a browser window will open asking you to sign in and approve access  
+4. You may see a warning saying **Google hasn’t verified this app**. If so, click **Advanced** and then **Go to bcfeed (unsafe)**.
+5. You will see a Google screen saying **bcfeed wants access to your Google Account**. Click **Continue**.
+6. The app will store your refresh token locally so you will not need to log in again
 
 ---
 
-## Important Notes
+## Important small print
 
 - These credentials are **for your personal use only**. Do **not** share them.  
 - The app is not a public OAuth client because **you** own and control the credentials.  
