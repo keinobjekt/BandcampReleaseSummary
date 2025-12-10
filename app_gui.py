@@ -11,8 +11,9 @@ import threading
 import webbrowser
 import sys
 import json
+import shutil
 from pathlib import Path
-from tkinter import Tk, StringVar, IntVar, Toplevel, Button, Label, Entry, Frame, messagebox
+from tkinter import Tk, StringVar, IntVar, Toplevel, Button, Label, Entry, Frame, messagebox, filedialog, ttk
 from tkinter.scrolledtext import ScrolledText
 
 from tkcalendar import Calendar
@@ -49,11 +50,44 @@ def load_settings():
     return {}
 
 
+def load_credentials() -> bool:
+    """
+    Ensure credentials.json is present in the data directory.
+    If missing and prompt_on_missing is True, ask the user to locate it.
+    """
+    credentials_path = DATA_DIR / "credentials.json"
+    token_path = DATA_DIR / "token.pickle"
+    has_credentials = credentials_path.exists()
+
+    path = filedialog.askopenfilename(
+        title="Load client_secret_XXXXXXXX.json",
+        filetypes=[("JSON files", "*.json")],
+    )
+    if not path and not has_credentials:
+        messagebox.showwarning("Credentials required", "No credentials file selected. Gmail will not work until you load it.")
+        return False
+    if path:
+        try:
+            # Remove any existing credentials/token so we always replace with the selected file
+            shutil.copy(Path(path), credentials_path)
+            messagebox.showinfo("Loaded", "Credentials loaded.")
+            if token_path.exists():
+                token_path.unlink()
+            return True
+        except Exception as exc:
+            messagebox.showerror("Error loading credentials", str(exc))
+            return False
+
+
 def save_settings(settings: dict):
     SETTINGS_PATH.parent.mkdir(exist_ok=True)
     tmp = SETTINGS_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(settings, indent=2), encoding="utf-8")
     tmp.replace(SETTINGS_PATH)
+
+
+def reset_credentials():
+    load_credentials()
 
 
 def start_proxy_thread():
@@ -100,6 +134,9 @@ def main():
     root = Tk()
     root.title("Bandcamp Release Dashboard")
     root.resizable(False, False)
+    style = ttk.Style(root)
+    style.configure("Run.TButton", padding=(8, 4))
+    style.configure("Action.TButton", padding=(8, 4))
 
     today = datetime.date.today()
     two_months_ago = today - datetime.timedelta(days=60)
@@ -268,10 +305,19 @@ def main():
             }
         )
 
-    # Toggle defaults
+    # Toggle defaults and actions
     from tkinter import Checkbutton  # localized import to avoid polluting top
     Checkbutton(root, text="Preload BC players (fetch Bandcamp pages now)", variable=preload_embeds_var).grid(row=3, column=0, columnspan=2, padx=8, sticky="w")
 
+    # Run / Reset credentials buttons
+    actions_frame = Frame(root)
+    actions_frame.grid(row=4, column=0, columnspan=3, padx=8, pady=6, sticky="e")
+
+    run_btn = ttk.Button(actions_frame, text="Run", width=16, style="Run.TButton", command=lambda: on_run())
+    run_btn.grid(row=0, column=1, padx=(10, 0), sticky="e")
+
+    reset_btn = ttk.Button(actions_frame, text="Reset credentials", width=16, style="Action.TButton", command=reset_credentials)
+    reset_btn.grid(row=1, column=1, pady=(4, 0), sticky="e")
 
     # Status box
     status_box = ScrolledText(root, width=80, height=12, state="disabled")
@@ -361,7 +407,6 @@ def main():
         else:
             worker()
             
-    Button(root, text="Run", command=on_run).grid(row=4, column=0, columnspan=3, pady=12)
 
     from tkinter import Checkbutton  # localized import to avoid polluting top
     def on_close():
@@ -373,6 +418,9 @@ def main():
                 proxy_thread.join(timeout=1)
         finally:
             root.destroy()
+
+    # Prompt for credentials on first launch if missing
+    root.after(50, lambda: load_credentials())
 
     root.protocol("WM_DELETE_WINDOW", on_close)
     root.mainloop()
