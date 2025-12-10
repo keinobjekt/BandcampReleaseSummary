@@ -64,7 +64,7 @@ def fetch_embed_metadata(release_url: str, timeout: int = 10) -> Dict[str, Optio
         return result
 
     try:
-        req = Request(release_url, headers={"User-Agent": "BandcampReleaseDashboard/1.0"})
+        req = Request(release_url, headers={"User-Agent": "bcfeed/1.0"})
         html_text = urlopen(req, timeout=timeout).read().decode("utf-8", errors="replace")
     except URLError as exc:
         print(f"Warning: unable to fetch Bandcamp page at {release_url}: {exc}")
@@ -163,7 +163,7 @@ def _normalize_release(
 def build_release_dashboard_html(
     releases: Iterable[Dict[str, str]],
     *,
-    title: str = "Bandcamp Release Dashboard",
+    title: str = "bcfeed",
     fetch_missing_ids: bool = False,
     log: Callable[[str], None] | None = None,
     embed_proxy_url: str | None = None,
@@ -189,7 +189,7 @@ def write_release_dashboard(
     releases: Iterable[Dict[str, str]],
     output_path: str | Path,
     *,
-    title: str = "Bandcamp Release Dashboard",
+    title: str = "bcfeed",
     fetch_missing_ids: bool = False,
     log: Callable[[str], None] | None = None,
     embed_proxy_url: str | None = None,
@@ -232,7 +232,7 @@ if __name__ == "__main__":
     output_file = write_release_dashboard(
         sample_releases,
         output_path="bandcamp_release_dashboard.html",
-        title="My Bandcamp Releases",
+        title="bcfeed sample",
         fetch_missing_ids=True
     )
     print(f"Dashboard written to {output_file}")

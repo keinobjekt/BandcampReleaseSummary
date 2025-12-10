@@ -2,7 +2,7 @@ Terms of Service
 
 Use of the App
 
-Bandcamp Release Dashboard (“the App”) helps you fetch Bandcamp release emails from your Gmail account, generate a local dashboard, and optionally fetch Bandcamp embeds via a local proxy. By using the App, you agree to these terms.
+bcfeed (“the App”) helps you fetch Bandcamp release emails from your Gmail account, generate a local dashboard, and optionally fetch Bandcamp embeds via a local proxy. By using the App, you agree to these terms.
 
 
 Account Access

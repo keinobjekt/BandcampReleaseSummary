@@ -122,7 +122,7 @@ def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port
     output_file = write_release_dashboard(
         releases=releases,
         output_path=output_path,
-        title="Bandcamp Release Dashboard",
+        title="bcfeed",
         fetch_missing_ids=preload_embeds,
         embed_proxy_url=f"http://localhost:{proxy_port}/embed-meta",
         log=log,
@@ -132,7 +132,7 @@ def run_pipeline(after_date: str, before_date: str, max_results: int, proxy_port
 
 def main():
     root = Tk()
-    root.title("Bandcamp Release Dashboard")
+    root.title("bcfeed")
     root.resizable(False, False)
     style = ttk.Style(root)
     style.configure("Run.TButton", padding=(8, 4))
@@ -386,7 +386,7 @@ def main():
                 sys.stdout = logger
                 
                 log(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-                log(f"Starting Bandcamp Release Dashboard generation...")
+                log(f"Starting generation of Bandcamp release feed...")
                 log(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
                 log(f"")
                 log(f"Running query from {start_date_var.get()} to {end_date_var.get()} with max {max_results} (proxy port {proxy_port}, preload {'on' if should_preload else 'off'})")

@@ -2,7 +2,7 @@
 
 What the app does
 
-Bandcamp Release Dashboard connects to your Gmail account to read “New release from…” emails sent by Bandcamp, extract release details, and generate a local HTML dashboard. The app also optionally fetches Bandcamp embed metadata via a local proxy.
+bcfeed connects to your Gmail account to read “New release from…” emails sent by Bandcamp, extract release details, and generate a local HTML dashboard. The app also optionally fetches Bandcamp embed metadata via a local proxy.
 
 
 Data the app accesses
@@ -19,7 +19,7 @@ How the app uses the data
 
 Data storage and sharing
 
-- All parsed data, caches, and state are stored locally on your machine (e.g., data/ directory and output.html).
+- All parsed data, caches, and state are stored locally on your machine (e.g., app data directory and output.html).
 - No data is sent to external servers other than Google (for Gmail access) and Bandcamp (for embed/player data).
 - The app does not give the developer access to any of your data. We do not (and cannot) sell, share, or transfer your data to third parties.
 
