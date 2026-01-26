@@ -1,3 +1,10 @@
+# ⛔️ DEPRECATED: This project is no longer maintained.
+
+BandcampReleaseSummary has been superseded by **bcfeed** and is now deprecated.
+
+Please visit [https://github.com/keinobjekt/bcfeed] to check out **bcfeed**.
+
+
 # BANDCAMP RELEASE SUMMARY
 
 BandcampReleaseSummary.py is a Python script which scrapes the Bandcamp release notification emails in your GMail account within a given date range, in order to create an HTML summary of new releases which can be opened in your browser.
